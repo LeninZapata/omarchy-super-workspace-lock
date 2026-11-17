@@ -62,6 +62,27 @@ Item {
     setLockState(Core.syncPrivate(lockState, Settings.privateIds(settings)))
   }
 
+  // ------------------------------------------------------- lock de sesión (H1)
+  // Hyprland no avisa cuando se bloquea la sesión. omarchy.lock y LockSigil
+  // responden ambos a `omarchy-shell lock isLocked`: se pregunta cada 2 s, y solo
+  // mientras haya algún privado abierto (si no, no hay nada que volver a bloquear).
+  readonly property bool sessionWatch: settingsLoaded && Core.hasUnlockedPrivate(lockState)
+
+  Timer {
+    id: sessionPoll
+    interval: 2000
+    repeat: true
+    running: root.sessionWatch
+    onTriggered: if (!sessionProc.running) sessionProc.exec(["omarchy-shell", "lock", "isLocked"])
+  }
+
+  Process {
+    id: sessionProc
+    stdout: StdioCollector {
+      onStreamFinished: if (text.trim() === "true") root.setLockState(Core.sessionLocked(root.lockState))
+    }
+  }
+
   // ------------------------------------------------------------ atajo global
   // lockShortcut se registra en caliente (hyprctl eval): al arrancar, al cambiar el
   // ajuste y tras cada recarga de Hyprland. El anterior se suelta siempre.
@@ -259,6 +280,7 @@ Item {
         authError: root.authError,
         shortcut: root.appliedShortcuts,
         shellPid: root.shellPid,
+        sessionWatch: root.sessionWatch,
         language: Commons.I18n.language,
         name: strings.t("plugin.name")
       })

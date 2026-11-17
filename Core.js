@@ -92,3 +92,15 @@ function lockNow(state, id) {
   if (!(n > 0)) return state
   return { privateIds: state.privateIds, lockedIds: uniq(state.lockedIds.concat([n])), previousWorkspaceId: state.previousWorkspaceId }
 }
+
+// Se bloqueó la sesión entera: todo privado vuelve a quedar bloqueado.
+function sessionLocked(state) {
+  return { privateIds: state.privateIds, lockedIds: uniq(state.lockedIds.concat(state.privateIds)), previousWorkspaceId: state.previousWorkspaceId }
+}
+
+// ¿Hay algún privado abierto? Solo entonces vale la pena vigilar el lock de sesión.
+function hasUnlockedPrivate(state) {
+  for (var i = 0; i < state.privateIds.length; i++)
+    if (state.lockedIds.indexOf(state.privateIds[i]) === -1) return true
+  return false
+}

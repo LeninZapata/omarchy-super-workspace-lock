@@ -70,4 +70,13 @@ assert.deepEqual(plain(q.lockedIds), []);
 assert.equal(C.isPrivate(q, 4), false);
 assert.deepEqual(plain(C.lockNow(q, -1)), plain(q));
 
+// lock de sesión: vuelven a bloquearse todos los privados; los puntuales siguen
+let z = C.unlockOk(C.unlockOk(C.start([2, 3]), 2), 3);
+z = C.lockNow(z, 5);
+assert.equal(C.hasUnlockedPrivate(z), true);
+z = C.sessionLocked(z);
+assert.deepEqual(plain(z.lockedIds), [2, 3, 5]);
+assert.equal(C.hasUnlockedPrivate(z), false);
+assert.equal(C.hasUnlockedPrivate(C.start([])), false);
+
 console.log('core ok');
