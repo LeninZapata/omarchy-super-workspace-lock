@@ -18,7 +18,7 @@ Rectangle {
 
   implicitWidth: 320
   implicitHeight: 44
-  radius: 8
+  radius: Commons.Style.cornerRadius
   color: Qt.rgba(1, 1, 1, 0.08)
   border.width: activeFocus ? 2 : 1
   border.color: activeFocus ? Commons.Color.accent : Qt.rgba(1, 1, 1, 0.25)
@@ -54,7 +54,7 @@ Rectangle {
     anchors.rightMargin: 14
     verticalAlignment: Text.AlignVCenter
     textFormat: Text.PlainText
-    font.family: Commons.Style.fontFamily
+    font.family: Commons.Style.font.menuFamily
     font.pixelSize: root.value.length > 0 ? 20 : 15
     color: root.value.length > 0 ? Commons.Color.foreground : Commons.Color.muted
     elide: Text.ElideLeft

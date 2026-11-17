@@ -2,6 +2,12 @@
 
 > What changed, by version (newest first; the last 10 are kept).
 
+## 0.3.0 - 2026-11-17 15:33
+---
+- [update] Settings window redesigned: Workspaces tab (each workspace as a small monitor, its settings beside it) and General tab, with setting cards and key hints
+- [update] Full keyboard control in settings: arrows move through the list, Enter goes into the options, left/right change a value, Esc goes back
+- [update] Lock screen card: locked monitor, which password it asks for, key hints, and a shake on a wrong password
+
 ## 0.2.0 - 2026-11-17 15:01
 ---
 - [feature] Settings window (from the panel's Settings button): defaults and per-workspace overrides with "Default" to inherit

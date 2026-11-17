@@ -66,5 +66,10 @@
   "hint.options": "options",
   "hint.change": "change",
   "hint.back": "back",
-  "hint.edit": "edit"
+  "hint.edit": "edit",
+  "lock.hintSystem": "Enter your password to show it.",
+  "lock.hintOwn": "Enter this workspace's password, or your system password.",
+  "hint.unlock": "unlock",
+  "hint.clear": "clear",
+  "hint.leave": "other workspace"
 }

@@ -66,5 +66,10 @@
   "hint.options": "opciones",
   "hint.change": "cambiar",
   "hint.back": "volver",
-  "hint.edit": "editar"
+  "hint.edit": "editar",
+  "lock.hintSystem": "Escribe tu contraseña para verlo.",
+  "lock.hintOwn": "Escribe la clave de este workspace o la del sistema.",
+  "hint.unlock": "desbloquear",
+  "hint.clear": "borrar",
+  "hint.leave": "otro workspace"
 }
