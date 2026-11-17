@@ -47,6 +47,7 @@ Item {
     var ids = Settings.privateIds(settings)
     if (!settingsLoaded) {
       settingsLoaded = true
+      applyShortcut()
       var started = Core.start(ids)
       setLockState(Core.focusChanged(started, -1, activeWorkspaceId > 0 ? activeWorkspaceId : -1))
     } else {
@@ -59,6 +60,24 @@ Item {
     settingsBroken = false
     settingsFile.setText(JSON.stringify(settings, null, 2) + "\n")
     setLockState(Core.syncPrivate(lockState, Settings.privateIds(settings)))
+  }
+
+  // ------------------------------------------------------------ atajo global
+  // lockShortcut se registra en caliente (hyprctl eval): al arrancar, al cambiar el
+  // ajuste y tras cada recarga de Hyprland. El anterior se suelta siempre.
+  property var appliedShortcuts: []
+
+  function applyShortcut() {
+    var s = Gate.shortcutLua(settings.lockShortcut, appliedShortcuts)
+    appliedShortcuts = s.applied
+    if (s.lua.length > 0) Quickshell.execDetached(["hyprctl", "eval", s.lua])
+  }
+
+  onSettingsChanged: if (settingsLoaded && Gate.normChord(settings.lockShortcut) !== (appliedShortcuts[0] || null)) applyShortcut()
+
+  // Bloquear ya el workspace activo (atajo / IPC). En uno público: bloqueo puntual.
+  function lockCurrent() {
+    if (activeWorkspaceId > 0) setLockState(Core.lockNow(lockState, activeWorkspaceId))
   }
 
   // Lo llama el panel de la barra (BarWidget.qml). Devuelve "ok" o "error: …".
@@ -131,10 +150,27 @@ Item {
       missingAllowed = g.missing
       gateOn = true
       gateProc.exec(["hyprctl", "eval", g.lua])
+      var wd = Gate.watchdogCmd(shellPid)
+      if (wd) Quickshell.execDetached(wd)
     } else if (!activeLocked && gateOn) {
       gateOn = false
       blurActive = false
       Quickshell.execDetached(["hyprctl", "eval", Gate.exitLua(prevBlur)])
+    }
+  }
+
+  // PID del proceso del shell (el padre de un sh lanzado con Process), para el vigía.
+  property int shellPid: 0
+  Process {
+    id: pidProc
+    command: ["sh", "-c", "echo $PPID; hyprctl submap"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var lines = text.trim().split("\n")
+        root.shellPid = parseInt(lines[0], 10) || 0
+        // Un shell anterior murió con la capa puesta: devolver la config de Lenin.
+        if ((lines[1] || "").trim() === Gate.SUBMAP) Quickshell.execDetached(Gate.recoverCmd())
+      }
     }
   }
 
@@ -144,6 +180,7 @@ Item {
     recordsReady = false
     prevBlur = null
     Quickshell.execDetached(["hyprctl", "eval", Gate.layerRuleLua()])
+    if (settingsLoaded) { appliedShortcuts = []; applyShortcut() }
     recordsProc.exec(["sh", "-c", "omarchy-menu-keybindings --print >/dev/null 2>&1; "
       + "f=$(ls -t \"$HOME\"/.cache/omarchy/keybindings-*.records 2>/dev/null | head -1); "
       + "[ -n \"$f\" ] && cat \"$f\""])
@@ -179,10 +216,15 @@ Item {
   }
   Timer { id: reloadTimer; interval: 300; onTriggered: root.refreshHyprland() }
 
-  Component.onDestruction: if (gateOn) Quickshell.execDetached(["hyprctl", "eval", Gate.exitLua(prevBlur)])
+  Component.onDestruction: {
+    if (gateOn) Quickshell.execDetached(["hyprctl", "eval", Gate.exitLua(prevBlur)])
+    var off = Gate.shortcutLua("", appliedShortcuts)
+    if (off.lua.length > 0) Quickshell.execDetached(["hyprctl", "eval", off.lua])
+  }
 
   Component.onCompleted: {
     syncFocus()
+    pidProc.running = true
     refreshHyprland()
     initProc.running = true
   }
@@ -215,9 +257,16 @@ Item {
         blurActive: root.blurActive,
         allowedMissing: root.missingAllowed,
         authError: root.authError,
+        shortcut: root.appliedShortcuts,
+        shellPid: root.shellPid,
         language: Commons.I18n.language,
         name: strings.t("plugin.name")
       })
+    }
+
+    function lockCurrent(): string {
+      root.lockCurrent()
+      return "ok"
     }
 
     function setPrivate(id: string, value: string): string {

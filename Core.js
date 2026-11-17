@@ -84,3 +84,11 @@ function faillockWait(text, nowMs, deny, unlockSec) {
   var left = Math.ceil((last + unlockSec * 1000 - nowMs) / 1000)
   return left > 0 ? left : 0
 }
+
+// Bloquear a mano el workspace actual (atajo o IPC). Si es público es un bloqueo
+// puntual: no se toca privateIds, así que al desbloquearlo sigue público.
+function lockNow(state, id) {
+  var n = Number(id)
+  if (!(n > 0)) return state
+  return { privateIds: state.privateIds, lockedIds: uniq(state.lockedIds.concat([n])), previousWorkspaceId: state.previousWorkspaceId }
+}

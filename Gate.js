@@ -104,3 +104,43 @@ function parseBlurOptions(text) {
   }
   return out
 }
+
+var LOCK_CMD = "omarchy-shell leninzapata.super-workspace-lock lockCurrent"
+
+// Registra el atajo de bloqueo (y suelta los anteriores). Nunca toca bindings.lua:
+// vive en Hyprland hasta la próxima recarga, tras la que Service.qml lo repone.
+// Devuelve { lua, applied } con los atajos que quedan puestos.
+function shortcutLua(chord, previous) {
+  var lines = []
+  var prev = previous || []
+  for (var i = 0; i < prev.length; i++) {
+    var p = normChord(prev[i])
+    if (p) lines.push("pcall(function() hl.unbind(" + luaStr(p) + ") end)")
+  }
+  var c = normChord(chord)
+  var applied = []
+  if (c) {
+    lines.push("pcall(function() hl.unbind(" + luaStr(c) + ") end)")
+    lines.push("hl.bind(" + luaStr(c) + ", hl.dsp.exec_cmd(" + luaStr(LOCK_CMD) + "), { description = \"Super Workspace Lock: lock this workspace\" })")
+    applied.push(c)
+  }
+  return { lua: lines.join("; "), applied: applied }
+}
+
+// Devuelve a Lenin su Hyprland: `reload` repone blur, atajos y reglas, pero NO
+// saca del submap (comprobado), así que además se hace submap reset.
+var RECOVER_SH = "hyprctl reload >/dev/null; hyprctl dispatch 'hl.dsp.submap(\"reset\")' >/dev/null"
+
+function recoverCmd() { return ["sh", "-c", RECOVER_SH] }
+
+// Vigía para que ninguna capa encierre: si el proceso del shell muere mientras
+// Hyprland sigue en el submap, recupera la config de Lenin. Se lanza desacoplado
+// al entrar en el submap.
+function watchdogCmd(shellPid) {
+  var pid = Math.round(Number(shellPid) || 0)
+  if (!(pid > 1)) return null
+  return ["sh", "-c",
+    'pid="$1"; while kill -0 "$pid" 2>/dev/null && [ "$(hyprctl submap)" = "' + SUBMAP + '" ]; do sleep 1; done; '
+    + 'if ! kill -0 "$pid" 2>/dev/null && [ "$(hyprctl submap)" = "' + SUBMAP + '" ]; then ' + RECOVER_SH + '; fi',
+    "swl-watchdog", String(pid)]
+}

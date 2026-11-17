@@ -60,4 +60,14 @@ assert.equal(C.faillockWait(fl(10), last + 121000, 10, 120), 0);
 assert.equal(C.faillockWait(fl(10).replace(/ V$/gm, ' I'), last, 10, 120), 0);
 assert.equal(C.faillockWait('', last, 10, 120), 0);
 
+// bloqueo puntual: un público se bloquea ya y al desbloquear sigue público
+let q = C.start([]);
+q = C.lockNow(q, 4);
+assert.deepEqual(plain(q.lockedIds), [4]);
+assert.equal(C.isPrivate(q, 4), false);
+q = C.unlockOk(q, 4);
+assert.deepEqual(plain(q.lockedIds), []);
+assert.equal(C.isPrivate(q, 4), false);
+assert.deepEqual(plain(C.lockNow(q, -1)), plain(q));
+
 console.log('core ok');

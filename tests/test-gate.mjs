@@ -37,4 +37,23 @@ assert.deepEqual(JSON.parse(JSON.stringify(prev)), { enabled: false, size: 8, pa
 assert.ok(G.exitLua(prev).includes('enabled = false, size = 8, passes = 1'));
 assert.ok(G.exitLua(prev).startsWith('hl.dispatch(hl.dsp.submap("reset"))'));
 
+// atajo de bloqueo: suelta los anteriores y pone el nuevo, normalizado
+const sc = G.shortcutLua('super ctrl shift + l', ['SUPER + ALT + L']);
+assert.deepEqual([...sc.applied], ['SUPER + CTRL + SHIFT + L']);
+assert.ok(sc.lua.startsWith('pcall(function() hl.unbind([[SUPER + ALT + L]]) end)'));
+assert.ok(sc.lua.includes('hl.bind([[SUPER + CTRL + SHIFT + L]], hl.dsp.exec_cmd([[omarchy-shell leninzapata.super-workspace-lock lockCurrent]])'));
+// vacío = sin atajo, solo suelta
+const none = G.shortcutLua('', ['SUPER + CTRL + SHIFT + L']);
+assert.deepEqual([...none.applied], []);
+assert.ok(!none.lua.includes('hl.bind('));
+
+// vigía: solo con un pid válido, y vigila el submap propio
+assert.equal(G.watchdogCmd(0), null);
+const w = G.watchdogCmd(4242);
+assert.equal(w[0], 'sh');
+assert.equal(w[w.length - 1], '4242');
+assert.ok(w[2].includes('swl-locked') && w[2].includes('hyprctl reload'));
+assert.ok(w[2].includes('hl.dsp.submap(') && w[2].includes('reset'), 'reload no saca del submap: hace falta reset');
+assert.ok(G.recoverCmd()[2].includes('submap'));
+
 console.log('gate ok');
