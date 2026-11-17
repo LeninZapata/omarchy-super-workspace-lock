@@ -2,6 +2,15 @@
 
 > What changed, by version (newest first; the last 10 are kept).
 
+## 0.2.0 - 2026-11-17 15:01
+---
+- [feature] Settings window (from the panel's Settings button): defaults and per-workspace overrides with "Default" to inherit
+- [feature] Lock after a while away: a private workspace can stay open for a chosen time after you leave it (5 s to 1 h)
+- [feature] Own password per workspace (scrypt, sent to the helper only through stdin); the system password always opens it too
+- [feature] Lock-now button per private workspace in the bar panel
+- [feature] Edit the shortcuts that work on a locked workspace, and the lock shortcut, by pressing them (no text fields)
+- [new] hash.py helper for own passwords, with its tests
+
 ## 0.1.0 - 2026-11-17 14:42
 ---
 - [feature] Mark a workspace as private: when you leave it, it locks and is covered with a heavy blur and a password box (system password, PAM)

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "leninzapata.super-workspace-lock",
   "name": "Super Workspace Lock",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "leninzapata",
   "license": "MIT",
   "description": "Mark a workspace as private: when you leave it, it is covered with a heavy blur and asks for your password to show it again",
@@ -17,7 +17,7 @@
   },
   "barWidget": {
     "displayName": "Super Workspace Lock",
-    "description": "Private workspaces: lock state and a private switch per workspace",
+    "description": "Private workspaces: lock state, a private switch and lock-now per workspace, settings",
     "category": "System",
     "allowMultiple": false
   }

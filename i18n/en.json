@@ -34,7 +34,6 @@
   "settings.private": "Private",
   "settings.public": "Public",
   "settings.lockedNote": "Locked: unlock it to make it public",
-  "settings.ownPassword": "Own password",
   "settings.ownNew": "New password",
   "settings.ownRepeat": "Repeat it",
   "settings.ownSave": "Save password",
