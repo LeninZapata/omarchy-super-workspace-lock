@@ -5,8 +5,9 @@ import Quickshell.Services.Pam
 import qs.Commons as Commons
 
 // Capa que tapa un workspace bloqueado (layer-shell Overlay, pantalla completa).
-// Se queda con el teclado mientras se ve. El blur fuerte y el filtro de atajos
-// llegan en el corte A2; aquí el fondo es opaco.
+// Se queda con el teclado mientras se ve. El blur lo hace Hyprland (regla de capa
+// + blur fuerte que activa Gate.js); hasta que Service.qml confirma que el blur
+// está puesto, el fondo es opaco: nunca se ve un fotograma sin blur.
 PanelWindow {
   id: layer
 
@@ -14,6 +15,7 @@ PanelWindow {
   property int workspaceId: -1
   property var strings: null
   property string errorKey: ""
+  property bool blurActive: false
 
   signal unlocked(int workspaceId)
 
@@ -80,7 +82,8 @@ PanelWindow {
 
   Rectangle {
     anchors.fill: parent
-    color: Commons.Color.background
+    color: Qt.rgba(Commons.Color.background.r, Commons.Color.background.g, Commons.Color.background.b,
+                   layer.blurActive ? 0.35 : 1.0)
 
     // El ratón no llega a las ventanas de detrás.
     MouseArea { anchors.fill: parent; onClicked: field.forceActiveFocus() }
