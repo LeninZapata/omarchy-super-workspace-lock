@@ -62,5 +62,9 @@
   "card.allowed.desc": "Solo estos funcionan con el blur puesto. Los rojos no están en los atajos de Omarchy y no hacen nada.",
   "card.generalLock.desc": "Para todo workspace que esté en «Por defecto».",
   "general.intro": "Valores por defecto para todos los workspaces. Cada uno puede cambiarlos en la pestaña Workspaces.",
-  "detail.locked": "Bloqueado: desbloquéalo para cambiar si es privado."
+  "detail.locked": "Bloqueado: desbloquéalo para cambiar si es privado.",
+  "hint.options": "opciones",
+  "hint.change": "cambiar",
+  "hint.back": "volver",
+  "hint.edit": "editar"
 }

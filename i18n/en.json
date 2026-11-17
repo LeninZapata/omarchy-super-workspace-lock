@@ -62,5 +62,9 @@
   "card.allowed.desc": "Only these work while the blur is up. Red ones are not in Omarchy's keybindings and do nothing.",
   "card.generalLock.desc": "For every workspace left on Default.",
   "general.intro": "Defaults for every workspace. Each workspace can override them in the Workspaces tab.",
-  "detail.locked": "Locked — unlock it to change whether it is private."
+  "detail.locked": "Locked — unlock it to change whether it is private.",
+  "hint.options": "options",
+  "hint.change": "change",
+  "hint.back": "back",
+  "hint.edit": "edit"
 }

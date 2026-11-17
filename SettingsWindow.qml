@@ -39,6 +39,52 @@ FloatingWindow {
   property int selectedWorkspace: 1
   property string ownMessage: ""
 
+  // ---- teclado en dos niveles: "list" (monitores / pestañas) y "options" (tarjetas)
+  property string focusArea: "list"
+  property int optCursor: 0
+  readonly property var rows: tab === "workspaces"
+    ? ["private", "lockMode", "delay", "password", "own"].filter(function(r) {
+        return (r !== "delay" || selectedEffective.lockMode === "delay") && (r !== "own" || selectedEffective.passwordMode === "own")
+      })
+    : ["lockMode", "delay", "password", "shortcut", "allowed"].filter(function(r) { return r !== "delay" || defs.lockMode === "delay" })
+  readonly property string currentRow: focusArea === "options" ? (rows[Math.min(optCursor, rows.length - 1)] || "") : ""
+
+  function cycle(list, current, dir) {
+    var i = list.indexOf(current)
+    return list[Math.max(0, Math.min(list.length - 1, (i === -1 ? 0 : i) + dir))]
+  }
+
+  // ←/→ sobre la tarjeta actual: cambia su valor con las mismas funciones que el ratón.
+  function changeRow(dir) {
+    var r = currentRow
+    if (tab === "workspaces") {
+      if (r === "private" && !selectedLocked) service.requestPrivate(selectedWorkspace, dir > 0)
+      else if (r === "lockMode") {
+        var m = cycle(["inherit", "immediate", "delay"], selectedEntry.lockMode || "inherit", dir)
+        saveWorkspace("lockMode", m === "inherit" ? null : m)
+      } else if (r === "delay") saveWorkspace("delaySeconds", stepDelay(selectedEffective.delaySeconds, dir))
+      else if (r === "password") {
+        var p = cycle(["inherit", "system", "own"], selectedEntry.passwordMode || "inherit", dir)
+        saveWorkspace("passwordMode", p === "inherit" ? null : p)
+      }
+    } else {
+      if (r === "lockMode") saveDefault("lockMode", cycle(["immediate", "delay"], defs.lockMode, dir))
+      else if (r === "delay") saveDefault("delaySeconds", stepDelay(defs.delaySeconds, dir))
+      else if (r === "password") saveDefault("passwordMode", cycle(["system", "own"], defs.passwordMode, dir))
+    }
+  }
+
+  // Enter sobre la tarjeta actual: lo que se edita (clave propia, capturar un atajo).
+  function activateRow() {
+    var r = currentRow
+    if (r === "own") ownNew.forceActiveFocus()
+    else if (r === "shortcut") startCapture("lockShortcut")
+    else if (r === "allowed") startCapture("allowed")
+  }
+
+  function enterOptions() { focusArea = "options"; optCursor = 0 }
+  function backToList() { focusArea = "list"; keys.forceActiveFocus() }
+
   readonly property var workspaceIds: {
     var existing = []
     var list = Hyprland.workspaces ? Hyprland.workspaces.values : []
@@ -151,6 +197,7 @@ FloatingWindow {
     selectedWorkspace = workspaceIds[i]
   }
 
+  onTabChanged: { focusArea = "list"; optCursor = 0 }
   onSelectedWorkspaceChanged: { if (service) service.ownStatus = ""; ownNew.clear(); ownRepeat.clear(); ownMessage = "" }
   onVisibleChanged: { capturing = false; if (visible) Qt.callLater(function() { keys.forceActiveFocus() }) }
 
@@ -174,12 +221,25 @@ FloatingWindow {
         event.accepted = true
         return
       }
-      if (event.key === Qt.Key_Escape) { win.service.closeSettings(); event.accepted = true }
-      else if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
-        win.tab = win.tab === "workspaces" ? "general" : "workspaces"; event.accepted = true
-      } else if (win.tab === "workspaces" && (event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
-        win.moveSelection(event.key === Qt.Key_Up ? -1 : 1); event.accepted = true
+      var up = event.key === Qt.Key_Up, down = event.key === Qt.Key_Down
+      var left = event.key === Qt.Key_Left, right = event.key === Qt.Key_Right
+      var enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+      if (win.focusArea === "options") {
+        // nivel opciones: ↑/↓ tarjeta · ←/→ valor · enter editar · esc volver
+        if (event.key === Qt.Key_Escape) win.backToList()
+        else if (up || down) win.optCursor = Math.max(0, Math.min(win.rows.length - 1, win.optCursor + (up ? -1 : 1)))
+        else if (left || right) win.changeRow(left ? -1 : 1)
+        else if (enter) win.activateRow()
+        else return
+      } else {
+        // nivel lista: ↑/↓ workspace · ←/→ pestaña · enter opciones · esc cerrar
+        if (event.key === Qt.Key_Escape) win.service.closeSettings()
+        else if (left || right) win.tab = win.tab === "workspaces" ? "general" : "workspaces"
+        else if ((up || down) && win.tab === "workspaces") win.moveSelection(up ? -1 : 1)
+        else if (enter || ((up || down) && win.tab === "general")) win.enterOptions()
+        else return
       }
+      event.accepted = true
     }
 
     MouseArea { anchors.fill: parent; onClicked: keys.forceActiveFocus() }
@@ -281,6 +341,7 @@ FloatingWindow {
               id: wsRow
               required property int modelData
               readonly property bool selected: win.selectedWorkspace === modelData
+              readonly property bool focused: selected && win.focusArea === "list"
               objectName: "ws-" + modelData
               width: wsList.width
               height: Style.space(52)
@@ -311,7 +372,7 @@ FloatingWindow {
                   width: parent.width
                   textFormat: Text.PlainText
                   text: win.strings ? win.strings.t("panel.workspace").arg(wsRow.modelData) : ""
-                  color: wsRow.selected ? Color.menu.selectedText : win.fg
+                  color: wsRow.focused ? Color.menu.selectedText : win.fg
                   font.family: win.fontFamily
                   font.pixelSize: Style.font.body
                   font.bold: wsRow.selected
@@ -333,7 +394,7 @@ FloatingWindow {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: { win.selectedWorkspace = wsRow.modelData; keys.forceActiveFocus() }
+                onClicked: { win.selectedWorkspace = wsRow.modelData; win.backToList() }
               }
             }
           }
@@ -400,6 +461,7 @@ FloatingWindow {
               SettingCard {
                 width: parent.width
                 title: win.t("settings.private")
+                hasCursor: win.currentRow === "private"
                 description: win.selectedLocked ? win.t("detail.locked") : win.t("card.private.desc")
                 fontFamily: win.fontFamily
                 ButtonGroup {
@@ -418,6 +480,7 @@ FloatingWindow {
                 width: parent.width
                 title: win.t("card.lockMode")
                 description: win.t("card.lockMode.desc")
+                hasCursor: win.currentRow === "lockMode"
                 fontFamily: win.fontFamily
                 ButtonGroup {
                   objectName: "wsLockMode"
@@ -433,6 +496,7 @@ FloatingWindow {
               SettingCard {
                 width: parent.width
                 visible: win.selectedEffective.lockMode === "delay"
+                hasCursor: win.currentRow === "delay"
                 title: win.t("card.delay")
                 description: win.t("card.delay.desc")
                 fontFamily: win.fontFamily
@@ -452,6 +516,7 @@ FloatingWindow {
               SettingCard {
                 width: parent.width
                 title: win.t("card.password")
+                hasCursor: win.currentRow === "password"
                 description: win.t("card.password.desc")
                 fontFamily: win.fontFamily
                 ButtonGroup {
@@ -468,6 +533,7 @@ FloatingWindow {
               SettingCard {
                 width: parent.width
                 visible: win.selectedEffective.passwordMode === "own"
+                hasCursor: win.currentRow === "own"
                 below: true
                 title: win.t("card.ownPassword")
                 description: win.ownStatusText()
@@ -479,6 +545,7 @@ FloatingWindow {
                   implicitHeight: Style.space(34)
                   placeholder: win.t("settings.ownNew")
                   onSubmitted: function(pw) { ownNew.value = pw; ownRepeat.forceActiveFocus() }
+                  onEscaped: keys.forceActiveFocus()
                 }
                 PasswordField {
                   id: ownRepeat
@@ -487,6 +554,7 @@ FloatingWindow {
                   implicitHeight: Style.space(34)
                   placeholder: win.t("settings.ownRepeat")
                   onSubmitted: function(pw) { ownRepeat.value = pw; win.saveOwn() }
+                  onEscaped: keys.forceActiveFocus()
                 }
                 Button { anchors.verticalCenter: parent.verticalCenter; text: win.t("settings.ownSave"); bordered: true; fontFamily: win.fontFamily; onClicked: win.saveOwn() }
                 Button { anchors.verticalCenter: parent.verticalCenter; visible: win.selectedHasOwn; text: win.t("settings.ownRemove"); bordered: true; fontFamily: win.fontFamily; onClicked: win.service.removeOwnPassword(win.selectedWorkspace) }
@@ -525,6 +593,7 @@ FloatingWindow {
               width: parent.width
               title: win.t("card.lockMode")
               description: win.t("card.generalLock.desc")
+              hasCursor: win.currentRow === "lockMode"
               fontFamily: win.fontFamily
               ButtonGroup {
                 objectName: "lockModeGroup"
@@ -539,6 +608,7 @@ FloatingWindow {
             SettingCard {
               width: parent.width
               visible: win.defs.lockMode === "delay"
+              hasCursor: win.currentRow === "delay"
               title: win.t("card.delay")
               description: win.t("card.delay.desc")
               fontFamily: win.fontFamily
@@ -561,6 +631,7 @@ FloatingWindow {
               title: win.t("card.password")
               description: win.t("card.password.desc")
               fontFamily: win.fontFamily
+              hasCursor: win.currentRow === "password"
               ButtonGroup {
                 focusable: false
                 options: [{ value: "system", label: win.t("settings.passwordSystem") }, { value: "own", label: win.t("settings.passwordOwn") }]
@@ -575,6 +646,7 @@ FloatingWindow {
             SettingCard {
               width: parent.width
               title: win.t("card.shortcut")
+              hasCursor: win.currentRow === "shortcut"
               description: win.t("card.shortcut.desc")
               fontFamily: win.fontFamily
               Rectangle {
@@ -608,6 +680,7 @@ FloatingWindow {
               width: parent.width
               below: true
               title: win.t("card.allowed")
+              hasCursor: win.currentRow === "allowed"
               description: win.t("card.allowed.desc")
               fontFamily: win.fontFamily
               Flow {
@@ -672,8 +745,11 @@ FloatingWindow {
         spacing: Style.space(10)
         Repeater {
           model: win.capturing ? [{ keys: "esc", hint: "hint.cancel" }]
-            : win.tab === "workspaces" ? [{ keys: "↑/↓", hint: "hint.move" }, { keys: "←/→", hint: "hint.switchTab" }, { keys: "esc", hint: "hint.close" }]
-            : [{ keys: "←/→", hint: "hint.switchTab" }, { keys: "esc", hint: "hint.close" }]
+            : win.focusArea === "options" ? [{ keys: "↑/↓", hint: "hint.move" }, { keys: "←/→", hint: "hint.change" },
+                                            { keys: "enter", hint: "hint.edit" }, { keys: "esc", hint: "hint.back" }]
+            : win.tab === "workspaces" ? [{ keys: "↑/↓", hint: "hint.move" }, { keys: "enter", hint: "hint.options" },
+                                          { keys: "←/→", hint: "hint.switchTab" }, { keys: "esc", hint: "hint.close" }]
+            : [{ keys: "enter", hint: "hint.options" }, { keys: "←/→", hint: "hint.switchTab" }, { keys: "esc", hint: "hint.close" }]
           delegate: Row {
             required property var modelData
             spacing: Style.space(4)

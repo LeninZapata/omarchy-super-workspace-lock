@@ -13,19 +13,31 @@ BorderSurface {
   property color accent: Color.accent
   property string fontFamily: Style.font.menuFamily
   property bool below: false
+  // Cursor de teclado sobre esta tarjeta (la ventana de ajustes la marca en acento).
+  property bool hasCursor: false
   default property alias controls: controlsBox.data
 
   readonly property int pad: Style.spacing.rowPaddingX
-  readonly property bool hot: hover.hovered
+  readonly property bool hot: hover.hovered || hasCursor
 
   implicitHeight: below
     ? textCol.implicitHeight + Style.space(10) + controlsBox.implicitHeight + Style.spacing.huge
     : Math.max(Style.space(58), Math.max(textCol.implicitHeight, controlsBox.implicitHeight) + Style.spacing.huge)
   radius: Style.cornerRadius
   color: Style.controlFill(false, hot, foreground, accent)
-  borderSpec: Border.controlSpec(hot ? "hover-cursor" : "normal", foreground, accent)
+  borderSpec: Border.controlSpec(hasCursor ? "hover-cursor" : (hot ? "hover-cursor" : "normal"), foreground, accent)
 
   HoverHandler { id: hover }
+
+  // Cursor de teclado: borde de acento bien visible (el de hover es muy sutil).
+  Rectangle {
+    anchors.fill: parent
+    radius: card.radius
+    color: Util.alpha(card.accent, 0.06)
+    border.width: Math.max(2, Style.normalBorderWidth * 2)
+    border.color: card.accent
+    visible: card.hasCursor
+  }
 
   Column {
     id: textCol

@@ -13,6 +13,8 @@ Rectangle {
   property string value: ""
 
   signal submitted(string password)
+  // Esc con el campo ya vacío: quien lo contiene recupera el foco (ajustes).
+  signal escaped()
 
   implicitWidth: 320
   implicitHeight: 44
@@ -35,6 +37,7 @@ Rectangle {
         root.submitted(pw)
       }
     } else if (event.key === Qt.Key_Escape) {
+      if (value.length === 0) root.escaped()
       value = ""
     } else if (event.key === Qt.Key_Backspace) {
       value = value.slice(0, -1)
