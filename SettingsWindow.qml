@@ -1,27 +1,44 @@
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import qs.Commons
 import qs.Commons as Commons
-import Quickshell.Hyprland
 import qs.Ui
 import "Settings.js" as Settings
 import "Core.js" as Core
 
-// Ventana flotante de ajustes (Rebanada B). No guarda nada por sí misma: cada
-// cambio va a `service.saveSettings`, que normaliza y escribe settings.json.
-// Ningún TextInput: los números se eligen con −/+ y el atajo se captura pulsándolo.
+// Ventana flotante de ajustes, con la piel de super-clipboard: dos pestañas
+// (Workspaces · General), tarjetas de ajuste y pie de teclas. No guarda nada por
+// sí misma: cada cambio va a `service.saveSettings` (normaliza y escribe el JSON).
+// Ningún TextInput: el retardo va con −/+ y los atajos se capturan pulsándolos.
 FloatingWindow {
   id: win
 
   property var service: null
   property var strings: null
+
+  // ------------------------------------------------------------------ tema
+  readonly property color bg: Color.menu.background
+  readonly property color fg: Color.menu.text
+  readonly property color accent: Color.accent
+  readonly property color mutedFg: Util.alpha(fg, 0.55)
+  readonly property color lineColor: Util.alpha(fg, 0.14)
+  readonly property color chipBg: Util.alpha(fg, 0.07)
+  readonly property color lockedColor: "#e06c75"
+  readonly property string fontFamily: Style.font.menuFamily
+  readonly property int margin: Style.spacing.panelPadding
+  readonly property real tabUnderline: Math.max(2, Style.space(3))
+
+  // ------------------------------------------------------------------ estado
   readonly property var settings: service ? service.settings : Settings.defaults()
   readonly property var defs: settings.defaults
-  property bool capturing: false
-  // A dónde va el atajo capturado: "lockShortcut" o "allowed" (añadir a la lista).
-  property string captureTarget: "lockShortcut"
-  property int selectedWorkspace: 1
   readonly property var lockState: service ? service.lockState : null
+  property string tab: "workspaces"
+  property bool capturing: false
+  property string captureTarget: "lockShortcut"   // o "allowed": añadir a la lista
+  property int selectedWorkspace: 1
+  property string ownMessage: ""
+
   readonly property var workspaceIds: {
     var existing = []
     var list = Hyprland.workspaces ? Hyprland.workspaces.values : []
@@ -30,18 +47,72 @@ FloatingWindow {
   }
   readonly property var selectedEntry: settings.workspaces[String(selectedWorkspace)] || ({})
   readonly property var selectedEffective: Settings.effective(settings, selectedWorkspace)
-
-  onSelectedWorkspaceChanged: { if (service) service.ownStatus = ""; ownNew.clear(); ownRepeat.clear(); ownMessage = "" }
-  property string ownMessage: ""
+  readonly property bool selectedLocked: !!lockState && lockState.lockedIds.indexOf(selectedWorkspace) !== -1
   readonly property bool selectedHasOwn: service ? service.ownPasswordIds.indexOf(selectedWorkspace) !== -1 : false
+
+  title: strings ? strings.t("settings.title") : "Super Workspace Lock"
+  color: bg
+  implicitWidth: 980
+  implicitHeight: 660
+
+  function t(key) { return strings ? strings.t(key) : key }
+
+  function statusOf(id) {
+    if (lockState && lockState.lockedIds.indexOf(id) !== -1) return "locked"
+    return Settings.effective(settings, id).private ? "private" : "public"
+  }
+
+  function formatDelay(sec) {
+    return sec >= 60 && sec % 60 === 0 ? t("settings.minutes").arg(sec / 60) : t("settings.seconds").arg(sec)
+  }
+
+  // Pasos del retardo (segundos), dentro de 5…3600.
+  readonly property var delaySteps: [5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
+  function stepDelay(current, dir) {
+    var i = delaySteps.indexOf(current)
+    if (i === -1) { i = 0; while (i < delaySteps.length - 1 && delaySteps[i] < current) i++ }
+    return delaySteps[Math.max(0, Math.min(delaySteps.length - 1, i + dir))]
+  }
+
+  function modeLabel(mode) { return mode === "delay" ? t("settings.delay") : t("settings.immediate") }
+  function passwordLabel(mode) { return mode === "own" ? t("settings.passwordOwn") : t("settings.passwordSystem") }
+
+  // Resumen de la config efectiva de un workspace para la lista.
+  function summary(id) {
+    var e = Settings.effective(settings, id)
+    if (!e.private) return t("settings.public")
+    var parts = [e.lockMode === "delay" ? formatDelay(e.delaySeconds) : t("settings.immediate")]
+    parts.push(passwordLabel(e.passwordMode))
+    return parts.join(" · ")
+  }
+
+  function saveDefault(field, value) {
+    var next = Settings.normalize(settings)
+    next.defaults[field] = value
+    service.saveSettings(next)
+  }
+  function saveTop(field, value) {
+    var next = Settings.normalize(settings)
+    next[field] = value
+    service.saveSettings(next)
+  }
+  // value null = «heredar»: se borra el campo y manda defaults.
+  function saveWorkspace(field, value) {
+    service.saveSettings(Settings.withWorkspaceField(settings, selectedWorkspace, field, value))
+  }
 
   function saveOwn() {
     if (ownNew.value.length === 0 || ownRepeat.value.length === 0) { ownMessage = t("settings.ownEmpty"); return }
-    if (ownNew.value !== ownRepeat.value) { ownMessage = t("settings.ownMismatch"); ownNew.clear(); ownRepeat.clear(); ownNew.forceActiveFocus(); return }
+    if (ownNew.value !== ownRepeat.value) {
+      ownMessage = t("settings.ownMismatch")
+      ownNew.clear(); ownRepeat.clear(); ownNew.forceActiveFocus()
+      return
+    }
     var pw = ownNew.value
     ownNew.clear(); ownRepeat.clear()
     ownMessage = ""
     service.setOwnPassword(selectedWorkspace, pw)
+    keys.forceActiveFocus()
   }
 
   function ownStatusText() {
@@ -53,61 +124,11 @@ FloatingWindow {
     return selectedHasOwn ? t("settings.ownHas") : t("settings.ownMissing")
   }
 
-  function modeLabel(mode) { return mode === "delay" ? t("settings.delay") : t("settings.immediate") }
-  function passwordLabel(mode) { return mode === "own" ? t("settings.passwordOwn") : t("settings.passwordSystem") }
-
-  // Resumen de la config efectiva de un workspace para la lista.
-  function summary(id) {
-    var e = Settings.effective(settings, id)
-    var parts = [e.private ? t("settings.private") : t("settings.public")]
-    if (e.private) {
-      parts.push(e.lockMode === "delay" ? t("settings.delay") + " · " + formatDelay(e.delaySeconds) : t("settings.immediate"))
-      parts.push(passwordLabel(e.passwordMode))
-    }
-    return parts.join(" · ")
-  }
-
-  // value null = «heredar»: se borra el campo y manda defaults.
-  function saveWorkspace(field, value) {
-    service.saveSettings(Settings.withWorkspaceField(settings, selectedWorkspace, field, value))
-  }
-
-  // Pasos del retardo (segundos), dentro de 5…3600.
-  readonly property var delaySteps: [5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
-
-  title: strings ? strings.t("settings.title") : "Super Workspace Lock"
-  color: Commons.Color.background
-  implicitWidth: 1100
-  implicitHeight: 700
-
-  function t(key) { return strings ? strings.t(key) : key }
-
-  function formatDelay(sec) {
-    return sec >= 60 && sec % 60 === 0 ? t("settings.minutes").arg(sec / 60) : t("settings.seconds").arg(sec)
-  }
-
-  function stepDelay(current, dir) {
-    var i = delaySteps.indexOf(current)
-    if (i === -1) { i = 0; while (i < delaySteps.length - 1 && delaySteps[i] < current) i++ }
-    i = Math.max(0, Math.min(delaySteps.length - 1, i + dir))
-    return delaySteps[i]
-  }
-
-  function saveDefault(field, value) {
-    var next = Settings.normalize(settings)
-    next.defaults[field] = value
-    service.saveSettings(next)
-  }
-
-  function saveTop(field, value) {
-    var next = Settings.normalize(settings)
-    next[field] = value
-    service.saveSettings(next)
-  }
+  function startCapture(target) { captureTarget = target; capturing = true; keys.forceActiveFocus() }
 
   // Atajo pulsado → "SUPER + CTRL + L". Solo teclas con nombre seguro (van a Lua).
   function chordFromEvent(event) {
-    var names = { }
+    var names = {}
     names[Qt.Key_Tab] = "TAB"; names[Qt.Key_Space] = "SPACE"; names[Qt.Key_Return] = "RETURN"
     names[Qt.Key_Left] = "LEFT"; names[Qt.Key_Right] = "RIGHT"; names[Qt.Key_Up] = "UP"; names[Qt.Key_Down] = "DOWN"
     var key = names[event.key] || ""
@@ -124,12 +145,21 @@ FloatingWindow {
     return mods.concat([key]).join(" + ")
   }
 
+  function moveSelection(dy) {
+    var i = workspaceIds.indexOf(selectedWorkspace)
+    i = Math.max(0, Math.min(workspaceIds.length - 1, (i === -1 ? 0 : i) + dy))
+    selectedWorkspace = workspaceIds[i]
+  }
+
+  onSelectedWorkspaceChanged: { if (service) service.ownStatus = ""; ownNew.clear(); ownRepeat.clear(); ownMessage = "" }
   onVisibleChanged: { capturing = false; if (visible) Qt.callLater(function() { keys.forceActiveFocus() }) }
 
+  // ------------------------------------------------------------------ vista
   Item {
     id: keys
     anchors.fill: parent
     focus: true
+
     Keys.onPressed: function(event) {
       if (win.capturing) {
         if (event.key === Qt.Key_Escape) win.capturing = false
@@ -142,239 +172,522 @@ FloatingWindow {
           }
         }
         event.accepted = true
-      } else if (event.key === Qt.Key_Escape) {
-        win.service.closeSettings()
-        event.accepted = true
+        return
+      }
+      if (event.key === Qt.Key_Escape) { win.service.closeSettings(); event.accepted = true }
+      else if (event.key === Qt.Key_Left || event.key === Qt.Key_Right) {
+        win.tab = win.tab === "workspaces" ? "general" : "workspaces"; event.accepted = true
+      } else if (win.tab === "workspaces" && (event.key === Qt.Key_Up || event.key === Qt.Key_Down)) {
+        win.moveSelection(event.key === Qt.Key_Up ? -1 : 1); event.accepted = true
       }
     }
 
-    Flickable {
+    MouseArea { anchors.fill: parent; onClicked: keys.forceActiveFocus() }
+
+    Column {
       anchors.fill: parent
-      anchors.margins: 24
-      contentHeight: Math.max(generalCol.implicitHeight, column.implicitHeight)
-      clip: true
+      anchors.margins: win.margin
+      spacing: Style.space(14)
 
-      Row {
-        id: twoCols
+      // ---- cabecera: pestañas con icono y subrayado de acento
+      Item {
+        id: tabBar
         width: parent.width
-        spacing: 32
+        height: Style.space(40)
 
-      Column {
-        id: generalCol
-        width: (twoCols.width - twoCols.spacing) * 0.42
-        spacing: 18
-
-        Text {
-          textFormat: Text.PlainText
-          text: win.t("settings.general")
-          color: Commons.Color.foreground
-          font.family: Style.font.family
-          font.pixelSize: Style.font.subtitle
-          font.bold: true
-        }
-
-        // --- modo de bloqueo
-        Column {
-          width: parent.width
-          spacing: 8
-          Text { textFormat: Text.PlainText; text: win.t("settings.lockMode"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
-          ButtonGroup {
-            objectName: "lockModeGroup"
-            options: [{ value: "immediate", label: win.t("settings.immediate") }, { value: "delay", label: win.t("settings.delay") }]
-            value: win.defs.lockMode
-            onChanged: function(v) { win.saveDefault("lockMode", v) }
-          }
-        }
-
-        // --- retardo
         Row {
-          spacing: 10
-          visible: win.defs.lockMode === "delay"
-          Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.delaySeconds"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 100 }
-          Button { objectName: "delayMinus"; text: "−"; bordered: true; onClicked: win.saveDefault("delaySeconds", win.stepDelay(win.defs.delaySeconds, -1)) }
-          Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.formatDelay(win.defs.delaySeconds); color: Commons.Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; width: 80; horizontalAlignment: Text.AlignHCenter }
-          Button { objectName: "delayPlus"; text: "+"; bordered: true; onClicked: win.saveDefault("delaySeconds", win.stepDelay(win.defs.delaySeconds, 1)) }
-        }
+          anchors.left: parent.left
+          anchors.top: parent.top
+          anchors.bottom: parent.bottom
+          spacing: Style.space(6)
 
-        // --- tipo de clave
-        Column {
-          width: parent.width
-          spacing: 8
-          Text { textFormat: Text.PlainText; text: win.t("settings.passwordMode"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
-          ButtonGroup {
-            options: [{ value: "system", label: win.t("settings.passwordSystem") }, { value: "own", label: win.t("settings.passwordOwn") }]
-            value: win.defs.passwordMode
-            onChanged: function(v) { win.saveDefault("passwordMode", v) }
-          }
-        }
-
-        // --- atajo de bloqueo (se captura pulsándolo)
-        Text { textFormat: Text.PlainText; text: win.t("settings.shortcut"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
-        Row {
-          spacing: 10
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: win.capturing && win.captureTarget === "lockShortcut" ? win.t("settings.shortcutPress") : (win.settings.lockShortcut || win.t("settings.shortcutNone"))
-            color: win.capturing && win.captureTarget === "lockShortcut" ? Commons.Color.accent : Commons.Color.foreground
-            font.family: Style.font.family
-            font.pixelSize: Style.font.body
-          }
-          Button {
-            visible: !win.capturing
-            text: win.t("settings.shortcutChange")
-            bordered: true
-            onClicked: { win.captureTarget = "lockShortcut"; win.capturing = true; keys.forceActiveFocus() }
-          }
-        }
-
-        // --- atajos permitidos sobre un workspace bloqueado (× quita · Añadir captura)
-        Text { textFormat: Text.PlainText; text: win.t("settings.allowed"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: parent.width; wrapMode: Text.WordWrap }
-        Flow {
-          width: parent.width
-          spacing: 6
           Repeater {
-            model: win.settings.lockedAllowedShortcuts
-            Button {
-              required property string modelData
-              readonly property bool missing: win.service && win.service.missingAllowed.indexOf(modelData) !== -1
-              text: modelData + "  ×"
-              tooltipText: missing ? win.t("settings.allowedMissing") : ""
-              foreground: missing ? Commons.Color.urgent : Commons.Color.foreground
-              bordered: true
-              onClicked: win.service.saveSettings(Settings.withAllowed(win.settings, modelData, false))
+            model: [{ id: "workspaces", icon: "󰍹", label: "tab.workspaces" }, { id: "general", icon: "󰒓", label: "tab.general" }]
+            Item {
+              required property var modelData
+              readonly property bool active: win.tab === modelData.id
+              objectName: "tab-" + modelData.id
+              width: tabLabel.implicitWidth + Style.space(24)
+              height: parent.height
+              Text {
+                id: tabLabel
+                anchors.centerIn: parent
+                anchors.verticalCenterOffset: -Style.space(2)
+                textFormat: Text.PlainText
+                text: modelData.icon + "  " + win.t(modelData.label)
+                color: parent.active || tabMouse.containsMouse ? win.accent : win.mutedFg
+                font.family: win.fontFamily
+                font.pixelSize: Style.font.body
+                font.bold: parent.active
+              }
+              Rectangle {
+                anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+                height: win.tabUnderline; radius: height / 2
+                color: win.accent
+                visible: parent.active
+              }
+              MouseArea {
+                id: tabMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: { win.tab = modelData.id; keys.forceActiveFocus() }
+              }
             }
           }
-          Button {
-            text: win.capturing && win.captureTarget === "allowed" ? win.t("settings.shortcutPress") : "+ " + win.t("settings.allowedAdd")
-            bordered: true
-            onClicked: { win.captureTarget = "allowed"; win.capturing = true; keys.forceActiveFocus() }
-          }
         }
 
-        Button {
-          text: win.t("settings.close")
-          bordered: true
-          onClicked: win.service.closeSettings()
+        Text {
+          anchors.right: parent.right
+          anchors.rightMargin: Style.space(6)
+          anchors.verticalCenter: parent.verticalCenter
+          textFormat: Text.PlainText
+          text: "󰌾  " + win.t("plugin.name")
+          color: win.mutedFg
+          font.family: win.fontFamily
+          font.pixelSize: Style.font.caption
+        }
+
+        Rectangle {
+          anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+          height: Style.normalBorderWidth
+          color: win.lineColor
         }
       }
 
-      Column {
-        id: column
-        width: (twoCols.width - twoCols.spacing) * 0.58
-        spacing: 18
+      // ---- contenido
+      Item {
+        id: body
+        width: parent.width
+        height: parent.height - tabBar.height - footer.height - 2 * Style.space(14)
 
-        Text {
-          textFormat: Text.PlainText
-          text: win.t("settings.perWorkspace")
-          color: Commons.Color.foreground
-          font.family: Style.font.family
-          font.pixelSize: Style.font.subtitle
-          font.bold: true
-        }
+        // ================= pestaña Workspaces: lista + detalle
+        Row {
+          anchors.fill: parent
+          spacing: Style.space(18)
+          visible: win.tab === "workspaces"
 
-        // --- lista: cada workspace con su config efectiva; clic = elegirlo
-        Column {
-          width: parent.width
-          spacing: 2
-          Repeater {
+          // lista
+          ListView {
+            id: wsList
+            width: Style.space(290)
+            height: parent.height
+            clip: true
+            spacing: Style.space(2)
+            boundsBehavior: Flickable.StopAtBounds
             model: win.workspaceIds
-            Rectangle {
+
+            delegate: Rectangle {
               id: wsRow
               required property int modelData
-              width: column.width
-              height: 34
-              radius: 4
-              color: win.selectedWorkspace === modelData ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
-              Text {
-                anchors.left: parent.left; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter
-                textFormat: Text.PlainText
-                text: win.strings ? win.strings.t("panel.workspace").arg(wsRow.modelData) : String(wsRow.modelData)
-                color: Commons.Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body
+              readonly property bool selected: win.selectedWorkspace === modelData
+              objectName: "ws-" + modelData
+              width: wsList.width
+              height: Style.space(52)
+              radius: Style.cornerRadius
+              color: selected ? Color.menu.selectedBackground : (rowMouse.containsMouse ? win.chipBg : "transparent")
+
+              WorkspaceIcon {
+                id: wsIcon
+                anchors.left: parent.left
+                anchors.leftMargin: Style.space(10)
+                anchors.verticalCenter: parent.verticalCenter
+                number: wsRow.modelData
+                status: win.statusOf(wsRow.modelData)
+                foreground: win.fg
+                accent: win.accent
+                lockedColor: win.lockedColor
+                fontFamily: win.fontFamily
               }
-              Text {
-                anchors.right: parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter
-                textFormat: Text.PlainText
-                text: win.summary(wsRow.modelData)
-                color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
+
+              Column {
+                anchors.left: wsIcon.right
+                anchors.leftMargin: Style.space(12)
+                anchors.right: parent.right
+                anchors.rightMargin: Style.space(10)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.space(2)
+                Text {
+                  width: parent.width
+                  textFormat: Text.PlainText
+                  text: win.strings ? win.strings.t("panel.workspace").arg(wsRow.modelData) : ""
+                  color: wsRow.selected ? Color.menu.selectedText : win.fg
+                  font.family: win.fontFamily
+                  font.pixelSize: Style.font.body
+                  font.bold: wsRow.selected
+                  elide: Text.ElideRight
+                }
+                Text {
+                  width: parent.width
+                  textFormat: Text.PlainText
+                  text: win.statusOf(wsRow.modelData) === "locked" ? win.t("state.locked") : win.summary(wsRow.modelData)
+                  color: win.statusOf(wsRow.modelData) === "locked" ? win.lockedColor : win.mutedFg
+                  font.family: win.fontFamily
+                  font.pixelSize: Style.font.caption
+                  elide: Text.ElideRight
+                }
               }
-              MouseArea { anchors.fill: parent; onClicked: win.selectedWorkspace = wsRow.modelData }
+
+              MouseArea {
+                id: rowMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: { win.selectedWorkspace = wsRow.modelData; keys.forceActiveFocus() }
+              }
+            }
+          }
+
+          Rectangle { width: Style.normalBorderWidth; height: parent.height; color: win.lineColor }
+
+          // detalle del elegido
+          Flickable {
+            id: detail
+            width: parent.width - wsList.width - 2 * Style.space(18) - Style.normalBorderWidth
+            height: parent.height
+            contentHeight: detailCol.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+
+            Column {
+              id: detailCol
+              width: detail.width
+              spacing: Style.space(8)
+
+              // cabecera del detalle: monitor grande + nombre + estado
+              Row {
+                spacing: Style.space(14)
+                bottomPadding: Style.space(6)
+                WorkspaceIcon {
+                  anchors.verticalCenter: parent.verticalCenter
+                  size: 1.6
+                  number: win.selectedWorkspace
+                  status: win.statusOf(win.selectedWorkspace)
+                  foreground: win.fg; accent: win.accent; lockedColor: win.lockedColor; fontFamily: win.fontFamily
+                }
+                Column {
+                  anchors.verticalCenter: parent.verticalCenter
+                  spacing: Style.space(4)
+                  Text {
+                    textFormat: Text.PlainText
+                    text: win.strings ? win.strings.t("panel.workspace").arg(win.selectedWorkspace) : ""
+                    color: win.fg
+                    font.family: win.fontFamily
+                    font.pixelSize: Style.font.title
+                    font.bold: true
+                  }
+                  Rectangle {
+                    readonly property string st: win.statusOf(win.selectedWorkspace)
+                    readonly property color tone: st === "locked" ? win.lockedColor : st === "private" ? win.accent : win.mutedFg
+                    radius: Style.space(3)
+                    color: Util.alpha(tone, 0.14)
+                    width: stateText.implicitWidth + Style.space(14)
+                    height: Style.space(20)
+                    Text {
+                      id: stateText
+                      anchors.centerIn: parent
+                      textFormat: Text.PlainText
+                      text: win.t(parent.st === "locked" ? "state.locked" : parent.st === "private" ? "state.private" : "state.public")
+                      color: parent.tone
+                      font.family: win.fontFamily
+                      font.pixelSize: Style.font.caption
+                      font.bold: true
+                    }
+                  }
+                }
+              }
+
+              SettingCard {
+                width: parent.width
+                title: win.t("settings.private")
+                description: win.selectedLocked ? win.t("detail.locked") : win.t("card.private.desc")
+                fontFamily: win.fontFamily
+                ButtonGroup {
+                  objectName: "privateGroup"
+                  focusable: false
+                  enabled: !win.selectedLocked
+                  opacity: enabled ? 1 : 0.5
+                  options: [{ value: "public", label: win.t("settings.public") }, { value: "private", label: win.t("settings.private") }]
+                  value: win.selectedEffective.private ? "private" : "public"
+                  foreground: win.fg; background: win.bg; accent: win.accent; fontFamily: win.fontFamily; fontSize: Style.font.caption
+                  onChanged: function(v) { win.service.requestPrivate(win.selectedWorkspace, v === "private") }
+                }
+              }
+
+              SettingCard {
+                width: parent.width
+                title: win.t("card.lockMode")
+                description: win.t("card.lockMode.desc")
+                fontFamily: win.fontFamily
+                ButtonGroup {
+                  objectName: "wsLockMode"
+                  focusable: false
+                  options: [{ value: "inherit", label: win.t("settings.inherit") },
+                            { value: "immediate", label: win.t("settings.immediate") }, { value: "delay", label: win.t("settings.delay") }]
+                  value: win.selectedEntry.lockMode || "inherit"
+                  foreground: win.fg; background: win.bg; accent: win.accent; fontFamily: win.fontFamily; fontSize: Style.font.caption
+                  onChanged: function(v) { win.saveWorkspace("lockMode", v === "inherit" ? null : v) }
+                }
+              }
+
+              SettingCard {
+                width: parent.width
+                visible: win.selectedEffective.lockMode === "delay"
+                title: win.t("card.delay")
+                description: win.t("card.delay.desc")
+                fontFamily: win.fontFamily
+                Button { text: "−"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveWorkspace("delaySeconds", win.stepDelay(win.selectedEffective.delaySeconds, -1)) }
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(70)
+                  horizontalAlignment: Text.AlignHCenter
+                  textFormat: Text.PlainText
+                  text: win.formatDelay(win.selectedEffective.delaySeconds)
+                  color: win.fg; font.family: win.fontFamily; font.pixelSize: Style.font.body; font.bold: true
+                }
+                Button { text: "+"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveWorkspace("delaySeconds", win.stepDelay(win.selectedEffective.delaySeconds, 1)) }
+                Button { visible: win.selectedEntry.delaySeconds !== undefined; text: win.t("settings.inherit"); bordered: true; fontFamily: win.fontFamily; onClicked: win.saveWorkspace("delaySeconds", null) }
+              }
+
+              SettingCard {
+                width: parent.width
+                title: win.t("card.password")
+                description: win.t("card.password.desc")
+                fontFamily: win.fontFamily
+                ButtonGroup {
+                  objectName: "wsPasswordMode"
+                  focusable: false
+                  options: [{ value: "inherit", label: win.t("settings.inherit") },
+                            { value: "system", label: win.t("settings.passwordSystem") }, { value: "own", label: win.t("settings.passwordOwn") }]
+                  value: win.selectedEntry.passwordMode || "inherit"
+                  foreground: win.fg; background: win.bg; accent: win.accent; fontFamily: win.fontFamily; fontSize: Style.font.caption
+                  onChanged: function(v) { win.saveWorkspace("passwordMode", v === "inherit" ? null : v) }
+                }
+              }
+
+              SettingCard {
+                width: parent.width
+                visible: win.selectedEffective.passwordMode === "own"
+                below: true
+                title: win.t("card.ownPassword")
+                description: win.ownStatusText()
+                fontFamily: win.fontFamily
+                PasswordField {
+                  id: ownNew
+                  objectName: "ownNew"
+                  implicitWidth: Style.space(190)
+                  implicitHeight: Style.space(34)
+                  placeholder: win.t("settings.ownNew")
+                  onSubmitted: function(pw) { ownNew.value = pw; ownRepeat.forceActiveFocus() }
+                }
+                PasswordField {
+                  id: ownRepeat
+                  objectName: "ownRepeat"
+                  implicitWidth: Style.space(190)
+                  implicitHeight: Style.space(34)
+                  placeholder: win.t("settings.ownRepeat")
+                  onSubmitted: function(pw) { ownRepeat.value = pw; win.saveOwn() }
+                }
+                Button { anchors.verticalCenter: parent.verticalCenter; text: win.t("settings.ownSave"); bordered: true; fontFamily: win.fontFamily; onClicked: win.saveOwn() }
+                Button { anchors.verticalCenter: parent.verticalCenter; visible: win.selectedHasOwn; text: win.t("settings.ownRemove"); bordered: true; fontFamily: win.fontFamily; onClicked: win.service.removeOwnPassword(win.selectedWorkspace) }
+              }
             }
           }
         }
 
-        // --- formulario del workspace elegido («Por defecto» = heredar)
-        Column {
-          width: parent.width
-          spacing: 10
+        // ================= pestaña General
+        Flickable {
+          anchors.fill: parent
+          visible: win.tab === "general"
+          contentHeight: generalCol.implicitHeight
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
 
-          Row {
-            spacing: 10
-            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.strings ? win.strings.t("panel.workspace").arg(win.selectedWorkspace) : ""; color: Commons.Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true; width: 90 }
-            ButtonGroup {
-              options: [{ value: "public", label: win.t("settings.public") }, { value: "private", label: win.t("settings.private") }]
-              value: win.selectedEffective.private ? "private" : "public"
-              onChanged: function(v) { win.service.requestPrivate(win.selectedWorkspace, v === "private") }
-            }
-          }
-          Text {
-            visible: win.lockState && win.lockState.lockedIds.indexOf(win.selectedWorkspace) !== -1
-            textFormat: Text.PlainText; text: win.t("settings.lockedNote")
-            color: Commons.Color.urgent; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall
-          }
-
-          Row {
-            spacing: 10
-            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.lockMode"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 90 }
-            ButtonGroup {
-              options: [{ value: "inherit", label: win.t("settings.inherit") },
-                        { value: "immediate", label: win.t("settings.immediate") }, { value: "delay", label: win.t("settings.delay") }]
-              value: win.selectedEntry.lockMode || "inherit"
-              onChanged: function(v) { win.saveWorkspace("lockMode", v === "inherit" ? null : v) }
-            }
-          }
-
-          Row {
-            spacing: 10
-            visible: win.selectedEffective.lockMode === "delay"
-            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.delaySeconds"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 90 }
-            Button { text: "−"; bordered: true; onClicked: win.saveWorkspace("delaySeconds", win.stepDelay(win.selectedEffective.delaySeconds, -1)) }
-            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.formatDelay(win.selectedEffective.delaySeconds); color: Commons.Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; width: 80; horizontalAlignment: Text.AlignHCenter }
-            Button { text: "+"; bordered: true; onClicked: win.saveWorkspace("delaySeconds", win.stepDelay(win.selectedEffective.delaySeconds, 1)) }
-            Button { visible: win.selectedEntry.delaySeconds !== undefined; text: win.t("settings.inherit"); bordered: true; onClicked: win.saveWorkspace("delaySeconds", null) }
-          }
-
-          Row {
-            spacing: 10
-            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.passwordMode"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 90 }
-            ButtonGroup {
-              options: [{ value: "inherit", label: win.t("settings.inherit") },
-                        { value: "system", label: win.t("settings.passwordSystem") }, { value: "own", label: win.t("settings.passwordOwn") }]
-              value: win.selectedEntry.passwordMode || "inherit"
-              onChanged: function(v) { win.saveWorkspace("passwordMode", v === "inherit" ? null : v) }
-            }
-          }
-
-          // --- clave propia (solo si este workspace usa clave propia)
           Column {
-            visible: win.selectedEffective.passwordMode === "own"
+            id: generalCol
             width: parent.width
-            spacing: 8
-            Text { textFormat: Text.PlainText; text: win.ownStatusText(); color: win.ownMessage || (win.service && win.service.ownStatus === "error") ? Commons.Color.urgent : Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
-            Row {
-              spacing: 10
-              PasswordField { id: ownNew; objectName: "ownNew"; implicitWidth: 200; placeholder: win.t("settings.ownNew"); onSubmitted: function(pw) { ownNew.value = pw; ownRepeat.forceActiveFocus() } }
-              PasswordField { id: ownRepeat; objectName: "ownRepeat"; implicitWidth: 200; placeholder: win.t("settings.ownRepeat"); onSubmitted: function(pw) { ownRepeat.value = pw; win.saveOwn() } }
+            spacing: Style.space(8)
+
+            Text {
+              width: parent.width
+              textFormat: Text.PlainText
+              text: win.t("general.intro")
+              color: win.mutedFg
+              font.family: win.fontFamily
+              font.pixelSize: Style.font.caption
+              wrapMode: Text.WordWrap
+              bottomPadding: Style.space(4)
             }
-            Row {
-              spacing: 10
-              Button { text: win.t("settings.ownSave"); bordered: true; onClicked: win.saveOwn() }
-              Button { visible: win.selectedHasOwn; text: win.t("settings.ownRemove"); bordered: true; onClicked: win.service.removeOwnPassword(win.selectedWorkspace) }
+
+            PanelSectionHeader { text: win.t("section.lock").toUpperCase(); foreground: win.fg; fontFamily: win.fontFamily; topPadding: Style.space(6) }
+
+            SettingCard {
+              width: parent.width
+              title: win.t("card.lockMode")
+              description: win.t("card.generalLock.desc")
+              fontFamily: win.fontFamily
+              ButtonGroup {
+                objectName: "lockModeGroup"
+                focusable: false
+                options: [{ value: "immediate", label: win.t("settings.immediate") }, { value: "delay", label: win.t("settings.delay") }]
+                value: win.defs.lockMode
+                foreground: win.fg; background: win.bg; accent: win.accent; fontFamily: win.fontFamily; fontSize: Style.font.caption
+                onChanged: function(v) { win.saveDefault("lockMode", v) }
+              }
+            }
+
+            SettingCard {
+              width: parent.width
+              visible: win.defs.lockMode === "delay"
+              title: win.t("card.delay")
+              description: win.t("card.delay.desc")
+              fontFamily: win.fontFamily
+              Button { objectName: "delayMinus"; text: "−"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveDefault("delaySeconds", win.stepDelay(win.defs.delaySeconds, -1)) }
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Style.space(70)
+                horizontalAlignment: Text.AlignHCenter
+                textFormat: Text.PlainText
+                text: win.formatDelay(win.defs.delaySeconds)
+                color: win.fg; font.family: win.fontFamily; font.pixelSize: Style.font.body; font.bold: true
+              }
+              Button { objectName: "delayPlus"; text: "+"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveDefault("delaySeconds", win.stepDelay(win.defs.delaySeconds, 1)) }
+            }
+
+            PanelSectionHeader { text: win.t("section.password").toUpperCase(); foreground: win.fg; fontFamily: win.fontFamily; topPadding: Style.space(10) }
+
+            SettingCard {
+              width: parent.width
+              title: win.t("card.password")
+              description: win.t("card.password.desc")
+              fontFamily: win.fontFamily
+              ButtonGroup {
+                focusable: false
+                options: [{ value: "system", label: win.t("settings.passwordSystem") }, { value: "own", label: win.t("settings.passwordOwn") }]
+                value: win.defs.passwordMode
+                foreground: win.fg; background: win.bg; accent: win.accent; fontFamily: win.fontFamily; fontSize: Style.font.caption
+                onChanged: function(v) { win.saveDefault("passwordMode", v) }
+              }
+            }
+
+            PanelSectionHeader { text: win.t("section.shortcuts").toUpperCase(); foreground: win.fg; fontFamily: win.fontFamily; topPadding: Style.space(10) }
+
+            SettingCard {
+              width: parent.width
+              title: win.t("card.shortcut")
+              description: win.t("card.shortcut.desc")
+              fontFamily: win.fontFamily
+              Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                radius: Style.space(3)
+                color: win.capturing && win.captureTarget === "lockShortcut" ? Util.alpha(win.accent, 0.16) : win.chipBg
+                width: chordText.implicitWidth + Style.space(16)
+                height: Style.space(26)
+                Text {
+                  id: chordText
+                  anchors.centerIn: parent
+                  textFormat: Text.PlainText
+                  text: win.capturing && win.captureTarget === "lockShortcut" ? win.t("settings.shortcutPress")
+                    : (win.settings.lockShortcut || win.t("settings.shortcutNone"))
+                  color: win.capturing && win.captureTarget === "lockShortcut" ? win.accent : win.fg
+                  font.family: win.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+              }
+              Button {
+                visible: !(win.capturing && win.captureTarget === "lockShortcut")
+                text: win.t("settings.shortcutChange")
+                bordered: true
+                fontFamily: win.fontFamily
+                onClicked: win.startCapture("lockShortcut")
+              }
+            }
+
+            SettingCard {
+              width: parent.width
+              below: true
+              title: win.t("card.allowed")
+              description: win.t("card.allowed.desc")
+              fontFamily: win.fontFamily
+              Flow {
+                width: generalCol.width - 2 * Style.spacing.rowPaddingX
+                spacing: Style.space(6)
+                Repeater {
+                  model: win.settings.lockedAllowedShortcuts
+                  Rectangle {
+                    id: chip
+                    required property string modelData
+                    readonly property bool missing: !!win.service && win.service.missingAllowed.indexOf(modelData) !== -1
+                    radius: Style.space(3)
+                    color: chipMouse.containsMouse ? Util.alpha(win.lockedColor, 0.14) : win.chipBg
+                    width: chipText.implicitWidth + Style.space(16)
+                    height: Style.space(26)
+                    Text {
+                      id: chipText
+                      anchors.centerIn: parent
+                      textFormat: Text.PlainText
+                      text: chip.modelData + (chipMouse.containsMouse ? "  ×" : "")
+                      color: chip.missing || chipMouse.containsMouse ? win.lockedColor : win.fg
+                      font.family: win.fontFamily
+                      font.pixelSize: Style.font.caption
+                    }
+                    MouseArea {
+                      id: chipMouse
+                      anchors.fill: parent
+                      hoverEnabled: true
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: win.service.saveSettings(Settings.withAllowed(win.settings, chip.modelData, false))
+                    }
+                  }
+                }
+                Rectangle {
+                  radius: Style.space(3)
+                  color: win.capturing && win.captureTarget === "allowed" ? Util.alpha(win.accent, 0.16) : "transparent"
+                  border.width: Style.normalBorderWidth
+                  border.color: Util.alpha(win.accent, 0.6)
+                  width: addText.implicitWidth + Style.space(16)
+                  height: Style.space(26)
+                  Text {
+                    id: addText
+                    anchors.centerIn: parent
+                    textFormat: Text.PlainText
+                    text: win.capturing && win.captureTarget === "allowed" ? win.t("settings.shortcutPress") : "+  " + win.t("settings.allowedAdd")
+                    color: win.accent
+                    font.family: win.fontFamily
+                    font.pixelSize: Style.font.caption
+                  }
+                  MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.startCapture("allowed") }
+                }
+              }
             }
           }
         }
-
       }
+
+      // ---- pie: teclas en chips
+      Flow {
+        id: footer
+        width: parent.width
+        spacing: Style.space(10)
+        Repeater {
+          model: win.capturing ? [{ keys: "esc", hint: "hint.cancel" }]
+            : win.tab === "workspaces" ? [{ keys: "↑/↓", hint: "hint.move" }, { keys: "←/→", hint: "hint.switchTab" }, { keys: "esc", hint: "hint.close" }]
+            : [{ keys: "←/→", hint: "hint.switchTab" }, { keys: "esc", hint: "hint.close" }]
+          delegate: Row {
+            required property var modelData
+            spacing: Style.space(4)
+            Rectangle {
+              radius: Style.space(3)
+              color: win.chipBg
+              width: keyText.implicitWidth + Style.space(10)
+              height: Style.space(18)
+              anchors.verticalCenter: parent.verticalCenter
+              Text { id: keyText; anchors.centerIn: parent; textFormat: Text.PlainText; text: modelData.keys; color: win.mutedFg; font.family: win.fontFamily; font.pixelSize: Style.font.caption }
+            }
+            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t(modelData.hint); color: win.mutedFg; font.family: win.fontFamily; font.pixelSize: Style.font.caption }
+          }
+        }
       }
     }
   }
