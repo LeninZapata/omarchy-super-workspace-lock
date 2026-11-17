@@ -109,6 +109,11 @@ Item {
 
   onSettingsChanged: if (settingsLoaded && Gate.normChord(settings.lockShortcut) !== (appliedShortcuts[0] || null)) applyShortcut()
 
+  // Bloquear ya un workspace concreto (botón del panel). Si es el activo, sale la capa.
+  function lockWorkspace(id) {
+    if (id > 0) setLockState(Core.lockNow(lockState, id))
+  }
+
   // Bloquear ya el workspace activo (atajo / IPC). En uno público: bloqueo puntual.
   function lockCurrent() {
     if (activeWorkspaceId > 0) setLockState(Core.lockNow(lockState, activeWorkspaceId))
