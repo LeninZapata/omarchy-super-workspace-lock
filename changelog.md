@@ -2,6 +2,11 @@
 
 > What changed, by version (newest first; the last 10 are kept).
 
+## 0.3.2 - 2026-11-17 18:35
+---
+- [fix] Switching to a locked workspace no longer flashes its windows for a moment: while a workspace is locked its windows are fully transparent, and they get their exact opacity back when it opens
+- [new] vis.py helper that hides and restores those windows, keeping the original opacity in ~/.local/state/omarchy/super-workspace-lock/hidden.json, with a watcher that gives everything back if the plugin stops
+
 ## 0.3.1 - 2026-11-17 18:24
 ---
 - [new] README with demo recordings

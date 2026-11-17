@@ -7,7 +7,7 @@ leave it, it locks: the next time you come back it is covered with a heavy blur 
 your password before it shows anything. Your system password always works, and each
 workspace can also have a password of its own.
 
-**Status: v0.3.0.** Lock right away or after some time away, the system password or a
+**Status: v0.3.2.** Lock right away or after some time away, the system password or a
 per-workspace one, a lock icon in the bar, a settings window you can drive with the keyboard,
 a shortcut to lock the workspace you are on, and a lock that comes back when the whole session
 is locked.
@@ -45,6 +45,9 @@ it (your system password would too).
   is moved or closed); it is shown behind a strong blur with a password card on top. The blur is
   Hyprland's own, turned on only while a workspace is locked and put back to your settings when
   it opens.
+- **Nothing shows while you switch to it.** While a workspace is locked its windows are made fully
+  transparent, so not even Hyprland's switch animation gives a glimpse of them. Opening it gives
+  every window back its exact opacity.
 - **Your password, or one of its own.** The system password (through PAM, the same check as
   Omarchy's lock screen) always opens a workspace. A workspace can also have its own password,
   kept only as a scrypt hash. The plugin never stores, logs or keeps your system password.
@@ -115,8 +118,9 @@ Everything can be changed in the settings window (lock icon → **Settings**). T
 |---|---|
 | `~/.config/omarchy/super-workspace-lock/settings.json` | settings and which workspaces are private |
 | `~/.config/omarchy/super-workspace-lock/passwords.json` | per-workspace passwords, as scrypt hashes |
+| `~/.local/state/omarchy/super-workspace-lock/hidden.json` | the original opacity of windows hidden while their workspace is locked |
 
-The folder is owner-only (`700`, files `600`), enforced at every shell start. Whether a workspace
+The folders are owner-only (`700`, files `600`), enforced at every shell start. Whether a workspace
 is locked is never saved: after a restart every private workspace starts locked.
 
 ## Known limits
@@ -158,6 +162,7 @@ What changed in each version is in [changelog.md](changelog.md).
 ├── SettingCard.qml      # one setting row
 ├── WorkspaceIcon.qml    # the small monitor
 ├── hash.py              # per-workspace password hashes (scrypt, password read from stdin)
+├── vis.py               # windows of a locked workspace go transparent, and back
 ├── i18n/                # en.json, es.json
 └── tests/               # QML syntax, node and python tests
 ```

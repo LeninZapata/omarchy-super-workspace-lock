@@ -49,6 +49,10 @@ Item {
       settingsLoaded = true
       applyShortcut()
       var started = Core.start(ids)
+      // Al arrancar: ocultar los bloqueados y devolver lo que quedó oculto de antes
+      // (un workspace que dejó de ser privado con el shell apagado).
+      Quickshell.execDetached(["python3", "-I", visScript, "sync"].concat(started.lockedIds.map(String)))
+      lockState = started
       setLockState(Core.focusChanged(started, -1, activeWorkspaceId > 0 ? activeWorkspaceId : -1, Date.now(), {}))
     } else {
       setLockState(Core.syncPrivate(lockState, ids))
@@ -227,8 +231,33 @@ Item {
   }
 
   function setLockState(next) {
+    var before = lockState ? lockState.lockedIds : []
     lockState = next
     activeLocked = Core.isLocked(next, activeWorkspaceId)
+    syncVisibility(before, next.lockedIds)
+  }
+
+  // ------------------------------------------------------- ventanas invisibles
+  // Las ventanas de un workspace bloqueado van a opacidad 0 (vis.py guarda y devuelve
+  // la original). Hyprland anima el cambio de workspace antes de que el plugin se
+  // entere: sin esto, esa transición enseñaba un instante lo que había detrás.
+  readonly property string visScript: String(Qt.resolvedUrl("vis.py")).replace(/^file:\/\//, "")
+
+  function vis(cmd, ids) {
+    if (ids.length === 0) return
+    Quickshell.execDetached(["python3", "-I", visScript, cmd].concat(ids.map(String)))
+  }
+
+  function syncVisibility(before, after) {
+    vis("hide", after.filter(function(id) { return before.indexOf(id) === -1 }))
+    vis("show", before.filter(function(id) { return after.indexOf(id) === -1 }))
+  }
+
+  // Una ventana que se abre o llega a un workspace bloqueado también se oculta.
+  Timer {
+    id: rehideTimer
+    interval: 150
+    onTriggered: root.vis("hide", root.lockState.lockedIds)
   }
 
   // El workspace activo cambió: el que se deja, si es privado, se bloquea.
@@ -328,6 +357,8 @@ Item {
     function onRawEvent(event) {
       // Una recarga de Hyprland borra reglas, submap y blur pedidos en caliente.
       if (event && event.name === "configreloaded") reloadTimer.restart()
+      if (event && (event.name === "openwindow" || event.name === "movewindowv2")
+          && root.lockState.lockedIds.length > 0) rehideTimer.restart()
     }
   }
   Timer { id: reloadTimer; interval: 300; onTriggered: root.refreshHyprland() }
