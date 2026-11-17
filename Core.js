@@ -66,3 +66,21 @@ function panelIds(existingIds, privateIds, base) {
   for (var i = 1; i <= n; i++) ids.push(i)
   return uniq(ids.concat(existingIds || [], privateIds || []))
 }
+
+// Segundos que faltan para que faillock deje volver a intentar, a partir de la
+// salida de `faillock --user <u>` (líneas "AAAA-MM-DD HH:MM:SS TIPO ORIGEN V|I").
+// 0 si no hay bloqueo. deny/unlockSec son los de /etc/pam.d/omarchy-lock-password.
+function faillockWait(text, nowMs, deny, unlockSec) {
+  var times = []
+  var lines = String(text || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var m = lines[i].match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\s+\S+\s+.*\s(V)\s*$/)
+    if (!m) continue
+    times.push(new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime())
+  }
+  if (times.length < deny) return 0
+  times.sort(function(a, b) { return a - b })
+  var last = times[times.length - 1]
+  var left = Math.ceil((last + unlockSec * 1000 - nowMs) / 1000)
+  return left > 0 ? left : 0
+}

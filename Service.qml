@@ -35,6 +35,8 @@ Item {
   // Estado de Core.js. Arranca de verdad con la primera lectura de settings.json:
   // todo privado empieza bloqueado.
   property var lockState: Core.start([])
+  // Clave de texto del último error de clave (auth.wrong / auth.locked); nunca la clave.
+  property string authError: ""
 
   function applySettingsText(raw) {
     var parsed = null
@@ -192,7 +194,8 @@ Item {
     workspaceId: root.activeWorkspaceId
     strings: strings
     blurActive: root.blurActive
-    onUnlocked: function(id) { root.setLockState(Core.unlockOk(root.lockState, id)) }
+    onUnlocked: function(id) { root.authError = ""; root.setLockState(Core.unlockOk(root.lockState, id)) }
+    onErrorReported: function(key) { root.authError = key }
   }
 
   // IPC: omarchy-shell leninzapata.super-workspace-lock <fn> [args]
@@ -211,6 +214,7 @@ Item {
         gateOn: root.gateOn,
         blurActive: root.blurActive,
         allowedMissing: root.missingAllowed,
+        authError: root.authError,
         language: Commons.I18n.language,
         name: strings.t("plugin.name")
       })

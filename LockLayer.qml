@@ -1,7 +1,6 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
-import Quickshell.Services.Pam
 import qs.Commons as Commons
 
 // Capa que tapa un workspace bloqueado (layer-shell Overlay, pantalla completa).
@@ -19,9 +18,11 @@ PanelWindow {
 
   signal unlocked(int workspaceId)
 
-  readonly property string userName: Quickshell.env("USER") || Quickshell.env("LOGNAME")
-  property string pendingPassword: ""
-  property bool busy: false
+  readonly property bool busy: auth.busy
+  property int waitSeconds: 0
+
+  signal errorReported(string key)
+  onErrorKeyChanged: errorReported(errorKey)
 
   visible: shown
   color: "transparent"
@@ -41,43 +42,32 @@ PanelWindow {
   function t(key) { return strings ? strings.t(key) : key }
 
   function submit(password) {
-    if (busy || password.length === 0) return
-    pendingPassword = password
-    busy = true
+    if (busy || waitSeconds > 0 || password.length === 0) return
     errorKey = ""
-    if (!pam.start()) fail()
-    else Qt.callLater(respond)
+    auth.submit(password)
   }
 
-  function respond() {
-    if (!busy || !pam.active || !pam.responseRequired) return
-    pam.respond(pendingPassword)
-    pendingPassword = ""
-  }
-
-  function fail() {
-    busy = false
-    pendingPassword = ""
-    errorKey = "auth.wrong"
-    field.clear()
-    field.forceActiveFocus()
-  }
-
-  PamContext {
-    id: pam
-    config: "omarchy-lock-password"
-    user: layer.userName
-
-    onResponseRequiredChanged: layer.respond()
-    onPamMessage: layer.respond()
-    onCompleted: function(result) {
-      layer.pendingPassword = ""
-      if (result === PamResult.Success) {
-        layer.busy = false
-        layer.unlocked(layer.workspaceId)
-      } else layer.fail()
+  Auth {
+    id: auth
+    onSucceeded: { layer.errorKey = ""; layer.unlocked(layer.workspaceId) }
+    onFailed: function(wait) {
+      layer.waitSeconds = wait
+      layer.errorKey = wait > 0 ? "auth.locked" : "auth.wrong"
+      if (wait > 0) waitTimer.restart()
+      field.clear()
+      field.forceActiveFocus()
     }
-    onError: function(error) { layer.fail() }
+  }
+
+  // Cuenta atrás del faillock; al llegar a 0 se puede volver a intentar.
+  Timer {
+    id: waitTimer
+    interval: 1000
+    repeat: true
+    onTriggered: {
+      layer.waitSeconds = Math.max(0, layer.waitSeconds - 1)
+      if (layer.waitSeconds === 0) { stop(); layer.errorKey = "" }
+    }
   }
 
   Rectangle {
@@ -115,7 +105,9 @@ PanelWindow {
         font.family: Commons.Style.fontFamily
         font.pixelSize: 14
         color: layer.busy ? Commons.Color.muted : Commons.Color.urgent
-        text: layer.busy ? layer.t("auth.busy") : (layer.errorKey ? layer.t(layer.errorKey) : "")
+        text: layer.busy ? layer.t("auth.busy")
+          : layer.errorKey === "auth.locked" ? layer.t("auth.locked").arg(layer.waitSeconds)
+          : (layer.errorKey ? layer.t(layer.errorKey) : "")
       }
     }
   }
