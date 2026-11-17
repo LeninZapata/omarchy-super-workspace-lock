@@ -158,6 +158,15 @@ Panel {
           }
         }
 
+        PanelSeparator { foreground: root.foreground }
+
+        Button {
+          text: strings.t("panel.settings")
+          iconText: "󰒓"
+          bordered: true
+          onClicked: { if (root.service) root.service.openSettings(); root.close() }
+        }
+
         Text {
           textFormat: Text.PlainText
           visible: root.message !== ""

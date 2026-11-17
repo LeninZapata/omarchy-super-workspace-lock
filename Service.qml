@@ -114,6 +114,29 @@ Item {
     if (activeWorkspaceId > 0) setLockState(Core.lockNow(lockState, activeWorkspaceId))
   }
 
+  // ------------------------------------------------------------ ventana de ajustes (B)
+  property bool settingsOpen: false
+  function openSettings() { settingsOpen = true }
+  function closeSettings() { settingsOpen = false }
+
+  // Guarda unos ajustes completos (la ventana de ajustes). Normaliza, escribe y
+  // aplica: privados, atajo (onSettingsChanged) y retardos en el próximo cambio.
+  function saveSettings(next) {
+    if (!settingsLoaded) return "error: settings not loaded"
+    settings = Settings.normalize(next)
+    settingsBroken = false
+    settingsFile.setText(JSON.stringify(settings, null, 2) + "\n")
+    setLockState(Core.syncPrivate(lockState, Settings.privateIds(settings)))
+    return "ok"
+  }
+
+  SettingsWindow {
+    service: root
+    strings: strings
+    visible: root.settingsOpen
+    onVisibleChanged: if (!visible) root.settingsOpen = false
+  }
+
   // Lo llama el panel de la barra (BarWidget.qml). Devuelve "ok" o "error: …".
   function requestPrivate(id, on) {
     if (!settingsLoaded) return "error: settings not loaded"
@@ -296,10 +319,14 @@ Item {
         shortcut: root.appliedShortcuts,
         shellPid: root.shellPid,
         sessionWatch: root.sessionWatch,
+        settingsOpen: root.settingsOpen,
         language: Commons.I18n.language,
         name: strings.t("plugin.name")
       })
     }
+
+    function openSettings(): string { root.openSettings(); return "ok" }
+    function closeSettings(): string { root.closeSettings(); return "ok" }
 
     function lockCurrent(): string {
       root.lockCurrent()
