@@ -14,11 +14,22 @@ is locked.
 
 ## See it
 
-![Make a workspace private from the bar; leave it and come back: it is locked](docs/demo/hero.gif)
+**Only a few shortcuts get past the lock.** While a workspace is locked, the keyboard belongs to
+the password card: Super+Q does not close the window behind the blur and Alt+Tab does not move the
+focus, but Super+3 still takes you to another workspace.
 
 ![A locked workspace only lets a few shortcuts through: Super+Q and Alt+Tab do nothing, Super+3 takes you away](docs/demo/shortcuts.gif)
 
+**Everything is set in one window, from the keyboard.** Open it from the lock icon in the bar:
+every workspace is a small monitor with its options beside it; Enter goes into them, left and right
+change a value (here, locking after some time away), Esc goes back, and the General tab holds the
+defaults every workspace inherits.
+
 ![The settings window: every workspace as a small monitor, its options beside it, all from the keyboard](docs/demo/settings.gif)
+
+**A workspace can have a password of its own.** Type it twice in the settings and it is kept only
+as a scrypt hash. Then Super+Ctrl+Shift+L locks the workspace you are on, and that password opens
+it (your system password would too).
 
 ![A password of its own for workspace 4, then Super+Ctrl+Shift+L locks it and that password opens it](docs/demo/own-password.gif)
 
