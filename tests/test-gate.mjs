@@ -60,4 +60,9 @@ assert.ok(G.recoverCmd()[2].includes('submap'));
 assert.ok(G.focusSettingsLua().includes('hl.dsp.window.resize('));
 assert.ok(G.focusSettingsLua().includes('hl.get_windows()') && G.focusSettingsLua().includes('hl.dsp.focus('));
 
+// duración de la animación de workspaces
+assert.equal(G.workspaceAnimMs('[[{"name":"workspaces","enabled":true,"speed":3.0}]]'), 300);
+assert.equal(G.workspaceAnimMs('[[{"name":"workspaces","enabled":false,"speed":3.0}]]'), 0);
+assert.equal(G.workspaceAnimMs('basura'), 300);
+
 console.log('gate ok');

@@ -162,3 +162,34 @@ function watchdogCmd(shellPid) {
     + 'if ! kill -0 "$pid" 2>/dev/null && [ "$(hyprctl submap)" = "' + SUBMAP + '" ]; then ' + RECOVER_SH + '; fi',
     "swl-watchdog", String(pid)]
 }
+
+// Tapa de un workspace bloqueado (CoverWindow.qml). La regla la hace nacer en su
+// workspace sin pasar por el actual; después se pone a pantalla completa por dirección.
+function coverTitle(id) { return "Super Workspace Lock · cover " + id }
+
+function coverRuleLua(id) {
+  var n = Math.round(Number(id))
+  return 'hl.window_rule({ name = "swl-cover-' + n + '", match = { title = "^Super Workspace Lock · cover ' + n + '$" }, '
+    + 'workspace = "' + n + ' silent", no_anim = true, no_initial_focus = true })'
+}
+
+function coverFullscreenLua(id) {
+  return 'for _, w in ipairs(hl.get_windows()) do '
+    + 'if w.title == ' + luaStr(coverTitle(id)) + ' and (w.fullscreen or 0) == 0 then '
+    + 'hl.dispatch(hl.dsp.window.fullscreen({ mode = "fullscreen", window = "address:" .. w.address })) end end'
+}
+
+// Duración (ms) de la animación de cambio de workspace, de `hyprctl animations -j`
+// (speed × 100 ms). Mientras dura, se ve la tarjeta de la tapa, que se mueve con el
+// workspace; la de la capa aparece al terminar, ya alineada encima.
+function workspaceAnimMs(text) {
+  try {
+    var groups = JSON.parse(text)
+    var flat = [].concat.apply([], groups.map(function(g) { return Array.isArray(g) ? g : [g] }))
+    for (var i = 0; i < flat.length; i++) {
+      var a = flat[i]
+      if (a && a.name === "workspaces") return a.enabled === false ? 0 : Math.round((Number(a.speed) || 0) * 100)
+    }
+  } catch (e) {}
+  return 300
+}

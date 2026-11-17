@@ -28,7 +28,7 @@ PanelWindow {
   onErrorKeyChanged: {
     errorReported(errorKey)
     // Clave incorrecta: la tarjeta tiembla un instante.
-    if (errorKey === "auth.wrong") shake.restart()
+    if (errorKey === "auth.wrong") card.shake()
   }
 
   visible: shown
@@ -40,11 +40,13 @@ PanelWindow {
   WlrLayershell.keyboardFocus: shown ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
   onShownChanged: {
+    cardRevealed = false
+    if (shown) revealTimer.restart()
     errorKey = ""
     field.clear()
     if (shown) field.forceActiveFocus()
   }
-  onWorkspaceIdChanged: { errorKey = ""; field.clear() }
+  onWorkspaceIdChanged: { errorKey = ""; field.clear(); cardRevealed = false; if (shown) revealTimer.restart() }
 
   function t(key) { return strings ? strings.t(key) : key }
 
@@ -78,123 +80,38 @@ PanelWindow {
   }
 
   // ------------------------------------------------------------------ vista
-  readonly property color fg: Commons.Color.menu.text
-  readonly property color mutedFg: Util.alpha(fg, 0.55)
-  readonly property color lockedColor: "#e06c75"   // rojo fijo: Color.urgent es gris en algunos temas
-  readonly property string fontFamily: Style.font.menuFamily
+  // Con la tapa del workspace ya puesta (CoverWindow.qml: fondo con blur y la misma
+  // tarjeta), la capa no pinta fondo: solo pone la tarjeta interactiva encima, en el
+  // mismo sitio. Sin tapa, el fondo de siempre (opaco hasta que Hyprland confirma el blur).
+  property bool coverReady: false
+  // Con tapa: la tarjeta de la capa aparece al acabar la animación de workspace, alineada
+  // encima de la de la tapa (antes se veían dos tarjetas mientras el workspace entraba).
+  property int revealDelay: 360
+  property bool cardRevealed: false
+  Timer { id: revealTimer; interval: lockWin.revealDelay; onTriggered: lockWin.cardRevealed = true }
 
   Rectangle {
     anchors.fill: parent
     color: Qt.rgba(Commons.Color.background.r, Commons.Color.background.g, Commons.Color.background.b,
-                   lockWin.blurActive ? 0.35 : 1.0)
+                   lockWin.coverReady ? 0.0 : (lockWin.blurActive ? 0.35 : 1.0))
 
     // El ratón no llega a las ventanas de detrás.
     MouseArea { anchors.fill: parent; onClicked: field.forceActiveFocus() }
 
-    Rectangle {
+    LockCard {
       id: card
-      width: Style.space(420)
-      height: cardCol.implicitHeight + 2 * Style.space(28)
       anchors.centerIn: parent
-      radius: Style.cornerRadius
-      color: Util.alpha(Commons.Color.menu.background, 0.92)
-      border.width: Style.normalBorderWidth
-      border.color: Util.alpha(lockWin.fg, 0.14)
-
-      transform: Translate { id: shakeX; x: 0 }
-      SequentialAnimation {
-        id: shake
-        NumberAnimation { target: shakeX; property: "x"; to: -10; duration: 45 }
-        NumberAnimation { target: shakeX; property: "x"; to: 10; duration: 70 }
-        NumberAnimation { target: shakeX; property: "x"; to: -6; duration: 60 }
-        NumberAnimation { target: shakeX; property: "x"; to: 0; duration: 50 }
-      }
-
-      Column {
-        id: cardCol
-        anchors.centerIn: parent
-        width: parent.width - 2 * Style.space(28)
-        spacing: Style.space(12)
-
-        WorkspaceIcon {
-          anchors.horizontalCenter: parent.horizontalCenter
-          size: 2.4
-          number: lockWin.workspaceId
-          status: "locked"
-          foreground: lockWin.fg
-          lockedColor: lockWin.lockedColor
-          fontFamily: lockWin.fontFamily
-        }
-
-        Text {
-          width: parent.width
-          horizontalAlignment: Text.AlignHCenter
-          textFormat: Text.PlainText
-          text: lockWin.strings ? lockWin.strings.t("lock.title").arg(lockWin.workspaceId) : ""
-          color: lockWin.fg
-          font.family: lockWin.fontFamily
-          font.pixelSize: Style.font.title
-          font.bold: true
-        }
-
-        Text {
-          width: parent.width
-          horizontalAlignment: Text.AlignHCenter
-          wrapMode: Text.WordWrap
-          textFormat: Text.PlainText
-          text: lockWin.t(lockWin.useOwnPassword ? "lock.hintOwn" : "lock.hintSystem")
-          color: lockWin.mutedFg
-          font.family: lockWin.fontFamily
-          font.pixelSize: Style.font.caption
-          bottomPadding: Style.space(4)
-        }
-
-        PasswordField {
-          id: field
-          width: parent.width
-          implicitHeight: Style.space(44)
-          busy: lockWin.busy
-          placeholder: lockWin.t("lock.placeholder")
-          onSubmitted: function(password) { lockWin.submit(password) }
-        }
-
-        // estado: altura fija para que la tarjeta no salte al aparecer un error
-        Text {
-          width: parent.width
-          height: Style.space(18)
-          horizontalAlignment: Text.AlignHCenter
-          textFormat: Text.PlainText
-          font.family: lockWin.fontFamily
-          font.pixelSize: Style.font.caption
-          color: lockWin.busy ? lockWin.mutedFg : lockWin.lockedColor
-          text: lockWin.busy ? lockWin.t("auth.busy")
-            : lockWin.errorKey === "auth.locked" ? lockWin.t("auth.locked").arg(lockWin.waitSeconds)
-            : (lockWin.errorKey ? lockWin.t(lockWin.errorKey) : "")
-          elide: Text.ElideRight
-        }
-
-        // pie de teclas
-        Row {
-          anchors.horizontalCenter: parent.horizontalCenter
-          spacing: Style.space(10)
-          Repeater {
-            model: [{ keys: "enter", hint: "hint.unlock" }, { keys: "esc", hint: "hint.clear" }, { keys: "super+1…0", hint: "hint.leave" }]
-            delegate: Row {
-              required property var modelData
-              spacing: Style.space(4)
-              Rectangle {
-                radius: Style.space(3)
-                color: Util.alpha(lockWin.fg, 0.07)
-                width: keyText.implicitWidth + Style.space(10)
-                height: Style.space(18)
-                anchors.verticalCenter: parent.verticalCenter
-                Text { id: keyText; anchors.centerIn: parent; textFormat: Text.PlainText; text: modelData.keys; color: lockWin.mutedFg; font.family: lockWin.fontFamily; font.pixelSize: Style.font.caption }
-              }
-              Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: lockWin.t(modelData.hint); color: lockWin.mutedFg; font.family: lockWin.fontFamily; font.pixelSize: Style.font.caption }
-            }
-          }
-        }
-      }
+      opacity: !lockWin.coverReady || lockWin.cardRevealed ? 1 : 0
+      workspaceId: lockWin.workspaceId
+      strings: lockWin.strings
+      useOwnPassword: lockWin.useOwnPassword
+      busy: lockWin.busy
+      statusText: lockWin.busy ? lockWin.t("auth.busy")
+        : lockWin.errorKey === "auth.locked" ? lockWin.t("auth.locked").arg(lockWin.waitSeconds)
+        : (lockWin.errorKey ? lockWin.t(lockWin.errorKey) : "")
+      onSubmitted: function(password) { lockWin.submit(password) }
     }
   }
+
+  readonly property var field: card.field
 }

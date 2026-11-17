@@ -235,6 +235,7 @@ Item {
     lockState = next
     activeLocked = Core.isLocked(next, activeWorkspaceId)
     syncVisibility(before, next.lockedIds)
+    syncCovers()
   }
 
   // ------------------------------------------------------- ventanas invisibles
@@ -251,6 +252,65 @@ Item {
   function syncVisibility(before, after) {
     vis("hide", after.filter(function(id) { return before.indexOf(id) === -1 }))
     vis("show", before.filter(function(id) { return after.indexOf(id) === -1 }))
+  }
+
+  // ------------------------------------------------------------ tapas (0.3.3)
+  // Una ventana tapa por workspace bloqueado (CoverWindow.qml). Primero se registra su
+  // regla (que nazca en su workspace, «silent»); solo entonces entra en coverIds y se crea.
+  property var coverIds: []
+  property var coverReadyIds: []
+  readonly property bool activeCoverReady: coverReadyIds.indexOf(activeWorkspaceId) !== -1
+
+  function syncCovers() {
+    var want = lockState.lockedIds
+    var keep = coverIds.filter(function(id) { return want.indexOf(id) !== -1 })
+    coverReadyIds = coverReadyIds.filter(function(id) { return want.indexOf(id) !== -1 })
+    var add = want.filter(function(id) { return coverIds.indexOf(id) === -1 })
+    coverIds = keep
+    if (add.length === 0) return
+    coverRuleProc.pending = add
+    coverRuleProc.exec(["hyprctl", "eval", add.map(Gate.coverRuleLua).join("; ")])
+  }
+
+  Process {
+    id: coverRuleProc
+    property var pending: []
+    onExited: {
+      var next = root.coverIds.slice()
+      for (var i = 0; i < pending.length; i++)
+        if (root.lockState.lockedIds.indexOf(pending[i]) !== -1 && next.indexOf(pending[i]) === -1) next.push(pending[i])
+      root.coverIds = next
+      coverFsTimer.restart()
+    }
+  }
+
+  // Ya mapeadas: a pantalla completa (por dirección; no cambia el workspace activo).
+  Timer {
+    id: coverFsTimer
+    interval: 350
+    onTriggered: {
+      var ids = root.coverIds.slice()
+      Quickshell.execDetached(["hyprctl", "eval", ids.map(Gate.coverFullscreenLua).join("; ")])
+      coverReadyTimer.pending = ids
+      coverReadyTimer.restart()
+    }
+  }
+  Timer {
+    id: coverReadyTimer
+    property var pending: []
+    interval: 250
+    onTriggered: root.coverReadyIds = pending.filter(function(id) { return root.coverIds.indexOf(id) !== -1 })
+  }
+
+  Variants {
+    model: root.coverIds
+    delegate: CoverWindow {
+      required property var modelData
+      workspaceId: modelData
+      strings: root.translations
+      useOwnPassword: Settings.effective(root.settings, modelData).passwordMode === "own"
+      visible: true
+    }
   }
 
   // Una ventana que se abre o llega a un workspace bloqueado también se oculta.
@@ -330,6 +390,7 @@ Item {
       + "f=$(ls -t \"$HOME\"/.cache/omarchy/keybindings-*.records 2>/dev/null | head -1); "
       + "[ -n \"$f\" ] && cat \"$f\""])
     blurProc.exec(["sh", "-c", "for o in enabled size passes; do hyprctl getoption decoration:blur:$o -j; done"])
+    animProc.exec(["hyprctl", "animations", "-j"])
   }
 
   Process {
@@ -337,6 +398,12 @@ Item {
     stdout: StdioCollector {
       onStreamFinished: { root.records = Gate.parseRecords(text); root.recordsReady = true }
     }
+  }
+
+  property int workspaceAnimMs: 300
+  Process {
+    id: animProc
+    stdout: StdioCollector { onStreamFinished: root.workspaceAnimMs = Gate.workspaceAnimMs(text) }
   }
 
   Process {
@@ -377,6 +444,8 @@ Item {
   }
 
   Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
+  // Con nombre propio: dentro de un delegado, `strings: strings` se apunta a sí mismo.
+  readonly property var translations: strings
 
   LockLayer {
     shown: root.activeLocked
@@ -384,6 +453,8 @@ Item {
     strings: strings
     blurActive: root.blurActive
     useOwnPassword: Settings.effective(root.settings, root.activeWorkspaceId).passwordMode === "own"
+    coverReady: root.activeCoverReady
+    revealDelay: root.workspaceAnimMs + 60
     onUnlocked: function(id) { root.authError = ""; root.setLockState(Core.unlockOk(root.lockState, id)) }
     onErrorReported: function(key) { root.authError = key }
   }

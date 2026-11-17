@@ -7,7 +7,7 @@ leave it, it locks: the next time you come back it is covered with a heavy blur 
 your password before it shows anything. Your system password always works, and each
 workspace can also have a password of its own.
 
-**Status: v0.3.2.** Lock right away or after some time away, the system password or a
+**Status: v0.3.3.** Lock right away or after some time away, the system password or a
 per-workspace one, a lock icon in the bar, a settings window you can drive with the keyboard,
 a shortcut to lock the workspace you are on, and a lock that comes back when the whole session
 is locked.
@@ -45,9 +45,10 @@ it (your system password would too).
   is moved or closed); it is shown behind a strong blur with a password card on top. The blur is
   Hyprland's own, turned on only while a workspace is locked and put back to your settings when
   it opens.
-- **Nothing shows while you switch to it.** While a workspace is locked its windows are made fully
-  transparent, so not even Hyprland's switch animation gives a glimpse of them. Opening it gives
-  every window back its exact opacity.
+- **It arrives already locked.** A locked workspace holds a cover of its own (your wallpaper,
+  blurred, with the lock card) and its windows are made fully transparent, so it slides in already
+  covered: not even Hyprland's switch animation gives a glimpse of what is on it. Opening it removes
+  the cover and gives every window back its exact opacity.
 - **Your password, or one of its own.** The system password (through PAM, the same check as
   Omarchy's lock screen) always opens a workspace. A workspace can also have its own password,
   kept only as a scrypt hash. The plugin never stores, logs or keeps your system password.
@@ -131,6 +132,8 @@ your screen. It does not hide the windows from tools running on your own account
 - the dock, window switchers (omahop and others), screenshots, screen sharing and
   `hyprctl clients` can still show or list the windows of a locked workspace;
 - one monitor is supported; on a second monitor a locked workspace is not covered;
+- each locked workspace holds one window of the plugin (its cover, titled
+  "Super Workspace Lock · cover N"), which window switchers may list;
 - no fingerprint unlock yet.
 
 ## Scripting
@@ -154,7 +157,9 @@ What changed in each version is in [changelog.md](changelog.md).
 ├── Core.js              # pure lock state machine
 ├── Settings.js          # defaults and validation of settings.json
 ├── Gate.js              # the Lua sent to Hyprland: blur, allowed-shortcut submap, recovery
-├── LockLayer.qml        # the blur layer and the password card
+├── LockLayer.qml        # the lock layer: takes the keyboard and holds the password card
+├── LockCard.qml         # the lock card, shared by the layer and the covers
+├── CoverWindow.qml      # the cover a locked workspace carries, so it arrives already covered
 ├── PasswordField.qml    # the plugin's own password field (no native Qt input)
 ├── Auth.qml             # PAM, per-workspace passwords and faillock
 ├── BarWidget.qml        # the lock icon and its panel

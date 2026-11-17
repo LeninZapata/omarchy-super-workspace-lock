@@ -2,6 +2,12 @@
 
 > What changed, by version (newest first; the last 10 are kept).
 
+## 0.3.3 - 2026-11-17 18:45
+---
+- [update] A locked workspace now arrives already covered: it carries a cover window of its own (blurred wallpaper and the lock card) that slides in with Hyprland's switch animation, so nothing of it, not even the bare wallpaper, shows while switching
+- [new] LockCard.qml, the lock card shared by the lock layer and the covers
+- [fix] The lock layer's card appears once the switch animation ends, aligned over the cover's, instead of showing two cards while the workspace slides in
+
 ## 0.3.2 - 2026-11-17 18:35
 ---
 - [fix] Switching to a locked workspace no longer flashes its windows for a moment: while a workspace is locked its windows are fully transparent, and they get their exact opacity back when it opens

@@ -102,9 +102,14 @@ def plan_show(data, wins, ids):
     return data, restore
 
 
+OWN_TITLE = "Super Workspace Lock"   # la tapa y los ajustes: ventanas del plugin, no se ocultan
+
+
 def window_list(ids=None):
     out = []
     for c in clients():
+        if (c.get("title") or "").startswith(OWN_TITLE):
+            continue
         ws = c.get("workspace", {}).get("id", 0)
         if ids is not None and ws not in ids:
             continue
