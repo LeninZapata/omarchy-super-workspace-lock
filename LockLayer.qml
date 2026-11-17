@@ -15,6 +15,8 @@ PanelWindow {
   property var strings: null
   property string errorKey: ""
   property bool blurActive: false
+  // passwordMode efectivo "own": se prueba primero la clave propia del workspace.
+  property bool useOwnPassword: false
 
   signal unlocked(int workspaceId)
 
@@ -44,7 +46,7 @@ PanelWindow {
   function submit(password) {
     if (busy || waitSeconds > 0 || password.length === 0) return
     errorKey = ""
-    auth.submit(password)
+    auth.submit(password, workspaceId, useOwnPassword)
   }
 
   Auth {

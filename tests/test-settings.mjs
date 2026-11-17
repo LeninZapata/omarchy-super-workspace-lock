@@ -28,4 +28,19 @@ assert.deepEqual(plain(S.privateIds(s)), [1, 3]);
 s = S.withPrivate(s, 3, false);
 assert.deepEqual(plain(S.privateIds(s)), [1]);
 
+// passwordMode: por workspace y por defecto; «heredar» = campo ausente
+let pm = S.normalize({ defaults: { passwordMode: 'own' }, workspaces: { '4': { passwordMode: 'system' }, '5': { passwordMode: 'raro', private: true } } });
+assert.equal(pm.defaults.passwordMode, 'own');
+assert.deepEqual(plain(pm.workspaces), { '4': { passwordMode: 'system' }, '5': { private: true } });
+assert.equal(S.effective(pm, 4).passwordMode, 'system');
+assert.equal(S.effective(pm, 5).passwordMode, 'own', 'hereda de defaults');
+assert.equal(S.effective(pm, 9).private, false);
+let w = S.withWorkspaceField(S.defaults(), 3, 'passwordMode', 'own');
+assert.deepEqual(plain(w.workspaces), { '3': { passwordMode: 'own' } });
+w = S.withPrivate(w, 3, true);
+w = S.withWorkspaceField(w, 3, 'passwordMode', null);
+assert.deepEqual(plain(w.workspaces), { '3': { private: true } });
+assert.deepEqual(plain(S.withPrivate(w, 3, false).workspaces), {});
+assert.equal(S.normalize({ defaults: { passwordMode: 'x' } }).defaults.passwordMode, 'system');
+
 console.log('settings ok');

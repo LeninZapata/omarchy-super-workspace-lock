@@ -257,6 +257,7 @@ Item {
     workspaceId: root.activeWorkspaceId
     strings: strings
     blurActive: root.blurActive
+    useOwnPassword: Settings.effective(root.settings, root.activeWorkspaceId).passwordMode === "own"
     onUnlocked: function(id) { root.authError = ""; root.setLockState(Core.unlockOk(root.lockState, id)) }
     onErrorReported: function(key) { root.authError = key }
   }
