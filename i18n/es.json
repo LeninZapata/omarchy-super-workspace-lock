@@ -1,0 +1,8 @@
+{
+  "plugin.name": "Super Workspace Lock",
+  "lock.title": "El workspace %1 está bloqueado",
+  "lock.placeholder": "Contraseña",
+  "auth.wrong": "Contraseña incorrecta",
+  "auth.locked": "Demasiados intentos. Espera %1 s (también afecta al bloqueo de sesión y a sudo)",
+  "auth.busy": "Comprobando…"
+}
