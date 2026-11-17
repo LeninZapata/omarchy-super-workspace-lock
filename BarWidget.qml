@@ -50,6 +50,9 @@ Panel {
   implicitHeight: button.implicitHeight
 
   onOpenedChanged: if (opened) {
+    // El cursor de teclado empieza siempre arriba: si recordara la última fila,
+    // ↓ bajaría a otro workspace distinto del que se ve marcado.
+    cursor = 0
     cursorActive = false
     message = ""
     Qt.callLater(function() { if (panel.loadedContent) panel.loadedContent.forceActiveFocus() })

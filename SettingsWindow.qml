@@ -199,7 +199,18 @@ FloatingWindow {
 
   onTabChanged: { focusArea = "list"; optCursor = 0 }
   onSelectedWorkspaceChanged: { if (service) service.ownStatus = ""; ownNew.clear(); ownRepeat.clear(); ownMessage = "" }
-  onVisibleChanged: { capturing = false; if (visible) Qt.callLater(function() { keys.forceActiveFocus() }) }
+  // Cada vez que se abre: pestaña Workspaces, nivel lista y el workspace en el que
+  // estás. Recordar la pestaña anterior hacía que las teclas cayeran donde no se veía.
+  onVisibleChanged: {
+    capturing = false
+    if (!visible) return
+    tab = "workspaces"
+    focusArea = "list"
+    optCursor = 0
+    var active = service ? service.activeWorkspaceId : 1
+    selectedWorkspace = workspaceIds.indexOf(active) !== -1 ? active : (workspaceIds[0] || 1)
+    Qt.callLater(function() { keys.forceActiveFocus() })
+  }
 
   // ------------------------------------------------------------------ vista
   Item {

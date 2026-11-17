@@ -121,7 +121,8 @@ Item {
 
   // ------------------------------------------------------------ ventana de ajustes (B)
   property bool settingsOpen: false
-  function openSettings() { settingsOpen = true }
+  function openSettings() { settingsOpen = true; settingsFocusTimer.restart() }
+  Timer { id: settingsFocusTimer; interval: 250; onTriggered: Quickshell.execDetached(["hyprctl", "eval", Gate.focusSettingsLua()]) }
   function closeSettings() { settingsOpen = false }
 
   // Guarda unos ajustes completos (la ventana de ajustes). Normaliza, escribe y

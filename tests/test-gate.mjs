@@ -56,4 +56,8 @@ assert.ok(w[2].includes('swl-locked') && w[2].includes('hyprctl reload'));
 assert.ok(w[2].includes('hl.dsp.submap(') && w[2].includes('reset'), 'reload no saca del submap: hace falta reset');
 assert.ok(G.recoverCmd()[2].includes('submap'));
 
+// regla propia de la ventana de ajustes + foco
+assert.ok(G.focusSettingsLua().includes('hl.dsp.window.resize('));
+assert.ok(G.focusSettingsLua().includes('hl.get_windows()') && G.focusSettingsLua().includes('hl.dsp.focus('));
+
 console.log('gate ok');

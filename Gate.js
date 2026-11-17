@@ -62,8 +62,26 @@ function actionLua(rec) {
 }
 
 // Una vez (y tras cada recarga de Hyprland): blur sin animación para la capa.
+
 function layerRuleLua() {
   return 'hl.layer_rule({ match = { namespace = "^' + NAMESPACE + '$" }, blur = true, ignore_alpha = 0, no_anim = true })'
+}
+
+// Al abrir la ventana de ajustes: darle el foco (desde el panel volvía a la de antes)
+// y su tamaño, centrada. El modo flotante de Omarchy le impone el suyo genérico
+// (min(1100, 64 %) × min(760, 68 %)), que en una pantalla escalada no la deja caber.
+function focusSettingsLua() {
+  return 'local win = nil; '
+    + 'for _, w in ipairs(hl.get_windows()) do '
+    + 'if w.title and string.find(w.title, "Super Workspace Lock \u2014 ", 1, true) == 1 then win = w end end; '
+    + 'if not win then return end; '
+    + 'local sel = "address:" .. win.address; '
+    + 'local m = hl.get_active_monitor(); '
+    + 'if m and m.width then '
+    + 'local mw = math.floor(m.width / m.scale); local mh = math.floor(m.height / m.scale); '
+    + 'hl.dispatch(hl.dsp.window.resize({ x = math.min(980, math.floor(mw * 0.92)), y = math.min(660, math.floor(mh * 0.9)), relative = false, window = sel })); '
+    + 'hl.dispatch(hl.dsp.window.center({ window = sel })) end; '
+    + 'hl.dispatch(hl.dsp.focus({ window = sel }))'
 }
 
 // Al mostrar la capa. Devuelve { lua, missing } (missing = permitidos sin acción en el caché).

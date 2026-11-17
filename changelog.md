@@ -2,6 +2,12 @@
 
 > What changed, by version (newest first; the last 10 are kept).
 
+## 0.3.1 - 2026-11-17 16:57
+---
+- [new] README with demo recordings
+- [fix] The settings window opens focused, centered and at its own size (on a scaled screen Omarchy's floating size cut it off), always on the Workspaces tab with the current workspace selected
+- [fix] The bar panel's keyboard cursor starts at the top each time it opens
+
 ## 0.3.0 - 2026-11-17 15:35
 ---
 - [update] Settings window redesigned: Workspaces tab (each workspace as a small monitor, its settings beside it) and General tab, with setting cards and key hints
