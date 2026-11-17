@@ -4,5 +4,12 @@
   "lock.placeholder": "Contraseña",
   "auth.wrong": "Contraseña incorrecta",
   "auth.locked": "Demasiados intentos. Espera %1 s (también afecta al bloqueo de sesión y a sudo)",
-  "auth.busy": "Comprobando…"
+  "auth.busy": "Comprobando…",
+  "panel.summary": "%1 privados · %2 bloqueados",
+  "panel.none": "Ningún workspace privado",
+  "panel.workspace": "Workspace %1",
+  "state.public": "Público",
+  "state.private": "Privado",
+  "state.locked": "Bloqueado",
+  "panel.lockedHint": "Desbloquéalo para cambiarlo"
 }

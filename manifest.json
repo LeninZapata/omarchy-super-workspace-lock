@@ -7,10 +7,18 @@
   "license": "MIT",
   "description": "Mark a workspace as private: when you leave it, it is covered with a heavy blur and asks for your password to show it again",
   "kinds": [
-    "service"
+    "service",
+    "bar-widget"
   ],
   "keepLoaded": true,
   "entryPoints": {
-    "service": "Service.qml"
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Super Workspace Lock",
+    "description": "Private workspaces: lock state and a private switch per workspace",
+    "category": "System",
+    "allowMultiple": false
   }
 }

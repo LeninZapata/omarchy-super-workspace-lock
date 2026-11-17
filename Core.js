@@ -57,3 +57,12 @@ function syncPrivate(state, ids) {
 function canSetPrivate(state, id, value) {
   return !!value || !isLocked(state, id)
 }
+
+// Workspaces que lista el panel: 1..base siempre, más los que existen por encima
+// y los privados (aunque hoy no existan). Ordenados, sin repetir.
+function panelIds(existingIds, privateIds, base) {
+  var n = base > 0 ? base : 5
+  var ids = []
+  for (var i = 1; i <= n; i++) ids.push(i)
+  return uniq(ids.concat(existingIds || [], privateIds || []))
+}

@@ -59,6 +59,14 @@ Item {
     setLockState(Core.syncPrivate(lockState, Settings.privateIds(settings)))
   }
 
+  // Lo llama el panel de la barra (BarWidget.qml). Devuelve "ok" o "error: …".
+  function requestPrivate(id, on) {
+    if (!settingsLoaded) return "error: settings not loaded"
+    if (!Core.canSetPrivate(lockState, id, on)) return "error: locked"
+    savePrivate(id, on)
+    return "ok"
+  }
+
   Process {
     id: initProc
     command: ["sh", "-c", 'umask 077\n'
@@ -211,11 +219,7 @@ Item {
     function setPrivate(id: string, value: string): string {
       var n = parseInt(id, 10)
       if (!(n > 0)) return "error: id"
-      var on = value === "true"
-      if (!root.settingsLoaded) return "error: settings not loaded"
-      if (!Core.canSetPrivate(root.lockState, n, on)) return "error: locked"
-      root.savePrivate(n, on)
-      return "ok"
+      return root.requestPrivate(n, value === "true")
     }
   }
 }

@@ -46,4 +46,8 @@ r = C.syncPrivate(C.start([6]), [7]);
 assert.deepEqual(plain(r.privateIds), [7]);
 assert.deepEqual(plain(r.lockedIds), [6]);
 
+// lista del panel: 1-5 + existentes por encima + privados; nada de especiales (id < 0)
+assert.deepEqual(plain(C.panelIds([1, 3, 7, -98], [9], 5)), [1, 2, 3, 4, 5, 7, 9]);
+assert.deepEqual(plain(C.panelIds([], [], 5)), [1, 2, 3, 4, 5]);
+
 console.log('core ok');

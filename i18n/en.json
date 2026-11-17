@@ -4,5 +4,12 @@
   "lock.placeholder": "Password",
   "auth.wrong": "Wrong password",
   "auth.locked": "Too many attempts. Wait %1 s (this also affects the session lock and sudo)",
-  "auth.busy": "Checking…"
+  "auth.busy": "Checking…",
+  "panel.summary": "%1 private · %2 locked",
+  "panel.none": "No private workspaces",
+  "panel.workspace": "Workspace %1",
+  "state.public": "Public",
+  "state.private": "Private",
+  "state.locked": "Locked",
+  "panel.lockedHint": "Unlock it to change it"
 }
