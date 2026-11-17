@@ -52,4 +52,11 @@ assert.deepEqual(plain(S.delays(dl)), { '2': 30, '4': 10, '6': 30 });
 assert.equal(S.effective(dl, 3).lockMode, 'immediate');
 assert.equal(S.normalize({ defaults: { delaySeconds: 2.5 } }).defaults.delaySeconds, 60);
 
+// atajos permitidos: añadir sin repetir, quitar, y nada inválido
+let al = S.withAllowed(S.defaults(), 'SUPER + F', true);
+assert.ok(al.lockedAllowedShortcuts.includes('SUPER + F'));
+assert.equal(S.withAllowed(al, 'SUPER + F', true).lockedAllowedShortcuts.filter(c => c === 'SUPER + F').length, 1);
+assert.ok(!S.withAllowed(al, 'SUPER + F', false).lockedAllowedShortcuts.includes('SUPER + F'));
+assert.ok(!S.withAllowed(al, 'x; os.exit()', true).lockedAllowedShortcuts.includes('x; os.exit()'));
+
 console.log('settings ok');

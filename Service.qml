@@ -130,6 +130,59 @@ Item {
     return "ok"
   }
 
+  // Clave propia (B5). La clave va a hash.py por stdin y se borra en cuanto se
+  // escribe; de passwords.json el servicio solo mira QUÉ workspaces tienen entrada.
+  property var ownPasswordIds: []
+  property string ownStatus: ""      // "", "busy", "saved", "removed", "error"
+
+  function setOwnPassword(id, password) {
+    if (ownProc.running || !(id > 0) || !password) return
+    ownStatus = "busy"
+    ownProc.secret = password
+    ownProc.mode = "set"
+    ownProc.exec(["python3", "-I", String(Qt.resolvedUrl("hash.py")).replace(/^file:\/\//, ""), "set", String(id)])
+  }
+
+  function removeOwnPassword(id) {
+    if (ownProc.running || !(id > 0)) return
+    ownStatus = "busy"
+    ownProc.secret = ""
+    ownProc.mode = "remove"
+    ownProc.exec(["python3", "-I", String(Qt.resolvedUrl("hash.py")).replace(/^file:\/\//, ""), "remove", String(id)])
+  }
+
+  Process {
+    id: ownProc
+    property string secret: ""
+    property string mode: ""
+    stdinEnabled: true
+    onStarted: {
+      if (secret.length > 0) write(secret + "\n")
+      secret = ""
+    }
+    onExited: function(exitCode) {
+      root.ownStatus = exitCode === 0 ? (mode === "set" ? "saved" : "removed") : "error"
+      passwordsFile.reload()
+    }
+  }
+
+  FileView {
+    id: passwordsFile
+    path: root.storageReady ? root.configDir + "/passwords.json" : ""
+    watchChanges: true
+    printErrors: false
+    onLoaded: {
+      var ids = []
+      try {
+        var d = JSON.parse(text())
+        for (var k in (d.entries || {})) if (parseInt(k, 10) > 0) ids.push(parseInt(k, 10))
+      } catch (e) {}
+      root.ownPasswordIds = ids
+    }
+    onLoadFailed: root.ownPasswordIds = []
+    onFileChanged: reload()
+  }
+
   SettingsWindow {
     service: root
     strings: strings

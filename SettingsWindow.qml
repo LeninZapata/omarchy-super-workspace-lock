@@ -18,6 +18,8 @@ FloatingWindow {
   readonly property var settings: service ? service.settings : Settings.defaults()
   readonly property var defs: settings.defaults
   property bool capturing: false
+  // A dónde va el atajo capturado: "lockShortcut" o "allowed" (añadir a la lista).
+  property string captureTarget: "lockShortcut"
   property int selectedWorkspace: 1
   readonly property var lockState: service ? service.lockState : null
   readonly property var workspaceIds: {
@@ -28,6 +30,28 @@ FloatingWindow {
   }
   readonly property var selectedEntry: settings.workspaces[String(selectedWorkspace)] || ({})
   readonly property var selectedEffective: Settings.effective(settings, selectedWorkspace)
+
+  onSelectedWorkspaceChanged: { if (service) service.ownStatus = ""; ownNew.clear(); ownRepeat.clear(); ownMessage = "" }
+  property string ownMessage: ""
+  readonly property bool selectedHasOwn: service ? service.ownPasswordIds.indexOf(selectedWorkspace) !== -1 : false
+
+  function saveOwn() {
+    if (ownNew.value.length === 0 || ownRepeat.value.length === 0) { ownMessage = t("settings.ownEmpty"); return }
+    if (ownNew.value !== ownRepeat.value) { ownMessage = t("settings.ownMismatch"); ownNew.clear(); ownRepeat.clear(); ownNew.forceActiveFocus(); return }
+    var pw = ownNew.value
+    ownNew.clear(); ownRepeat.clear()
+    ownMessage = ""
+    service.setOwnPassword(selectedWorkspace, pw)
+  }
+
+  function ownStatusText() {
+    if (ownMessage) return ownMessage
+    var st = service ? service.ownStatus : ""
+    if (st === "saved") return t("settings.ownSaved")
+    if (st === "removed") return t("settings.ownRemoved")
+    if (st === "error") return t("settings.ownError")
+    return selectedHasOwn ? t("settings.ownHas") : t("settings.ownMissing")
+  }
 
   function modeLabel(mode) { return mode === "delay" ? t("settings.delay") : t("settings.immediate") }
   function passwordLabel(mode) { return mode === "own" ? t("settings.passwordOwn") : t("settings.passwordSystem") }
@@ -53,8 +77,8 @@ FloatingWindow {
 
   title: strings ? strings.t("settings.title") : "Super Workspace Lock"
   color: Commons.Color.background
-  implicitWidth: 560
-  implicitHeight: 760
+  implicitWidth: 1100
+  implicitHeight: 700
 
   function t(key) { return strings ? strings.t(key) : key }
 
@@ -111,7 +135,11 @@ FloatingWindow {
         if (event.key === Qt.Key_Escape) win.capturing = false
         else {
           var chord = win.chordFromEvent(event)
-          if (chord) { win.capturing = false; win.saveTop("lockShortcut", chord) }
+          if (chord) {
+            win.capturing = false
+            if (win.captureTarget === "allowed") win.service.saveSettings(Settings.withAllowed(win.settings, chord, true))
+            else win.saveTop("lockShortcut", chord)
+          }
         }
         event.accepted = true
       } else if (event.key === Qt.Key_Escape) {
@@ -123,12 +151,17 @@ FloatingWindow {
     Flickable {
       anchors.fill: parent
       anchors.margins: 24
-      contentHeight: column.implicitHeight
+      contentHeight: Math.max(generalCol.implicitHeight, column.implicitHeight)
       clip: true
 
-      Column {
-        id: column
+      Row {
+        id: twoCols
         width: parent.width
+        spacing: 32
+
+      Column {
+        id: generalCol
+        width: (twoCols.width - twoCols.spacing) * 0.42
         spacing: 18
 
         Text {
@@ -157,7 +190,7 @@ FloatingWindow {
         Row {
           spacing: 10
           visible: win.defs.lockMode === "delay"
-          Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.delaySeconds"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 140 }
+          Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.delaySeconds"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 100 }
           Button { objectName: "delayMinus"; text: "−"; bordered: true; onClicked: win.saveDefault("delaySeconds", win.stepDelay(win.defs.delaySeconds, -1)) }
           Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.formatDelay(win.defs.delaySeconds); color: Commons.Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; width: 80; horizontalAlignment: Text.AlignHCenter }
           Button { objectName: "delayPlus"; text: "+"; bordered: true; onClicked: win.saveDefault("delaySeconds", win.stepDelay(win.defs.delaySeconds, 1)) }
@@ -176,14 +209,14 @@ FloatingWindow {
         }
 
         // --- atajo de bloqueo (se captura pulsándolo)
+        Text { textFormat: Text.PlainText; text: win.t("settings.shortcut"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
         Row {
           spacing: 10
-          Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.shortcut"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 180 }
           Text {
             anchors.verticalCenter: parent.verticalCenter
             textFormat: Text.PlainText
-            text: win.capturing ? win.t("settings.shortcutPress") : (win.settings.lockShortcut || win.t("settings.shortcutNone"))
-            color: win.capturing ? Commons.Color.accent : Commons.Color.foreground
+            text: win.capturing && win.captureTarget === "lockShortcut" ? win.t("settings.shortcutPress") : (win.settings.lockShortcut || win.t("settings.shortcutNone"))
+            color: win.capturing && win.captureTarget === "lockShortcut" ? Commons.Color.accent : Commons.Color.foreground
             font.family: Style.font.family
             font.pixelSize: Style.font.body
           }
@@ -191,11 +224,45 @@ FloatingWindow {
             visible: !win.capturing
             text: win.t("settings.shortcutChange")
             bordered: true
-            onClicked: { win.capturing = true; keys.forceActiveFocus() }
+            onClicked: { win.captureTarget = "lockShortcut"; win.capturing = true; keys.forceActiveFocus() }
           }
         }
 
-        PanelSeparator { foreground: Commons.Color.foreground }
+        // --- atajos permitidos sobre un workspace bloqueado (× quita · Añadir captura)
+        Text { textFormat: Text.PlainText; text: win.t("settings.allowed"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: parent.width; wrapMode: Text.WordWrap }
+        Flow {
+          width: parent.width
+          spacing: 6
+          Repeater {
+            model: win.settings.lockedAllowedShortcuts
+            Button {
+              required property string modelData
+              readonly property bool missing: win.service && win.service.missingAllowed.indexOf(modelData) !== -1
+              text: modelData + "  ×"
+              tooltipText: missing ? win.t("settings.allowedMissing") : ""
+              foreground: missing ? Commons.Color.urgent : Commons.Color.foreground
+              bordered: true
+              onClicked: win.service.saveSettings(Settings.withAllowed(win.settings, modelData, false))
+            }
+          }
+          Button {
+            text: win.capturing && win.captureTarget === "allowed" ? win.t("settings.shortcutPress") : "+ " + win.t("settings.allowedAdd")
+            bordered: true
+            onClicked: { win.captureTarget = "allowed"; win.capturing = true; keys.forceActiveFocus() }
+          }
+        }
+
+        Button {
+          text: win.t("settings.close")
+          bordered: true
+          onClicked: win.service.closeSettings()
+        }
+      }
+
+      Column {
+        id: column
+        width: (twoCols.width - twoCols.spacing) * 0.58
+        spacing: 18
 
         Text {
           textFormat: Text.PlainText
@@ -243,7 +310,7 @@ FloatingWindow {
 
           Row {
             spacing: 10
-            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.strings ? win.strings.t("panel.workspace").arg(win.selectedWorkspace) : ""; color: Commons.Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true; width: 140 }
+            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.strings ? win.strings.t("panel.workspace").arg(win.selectedWorkspace) : ""; color: Commons.Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true; width: 90 }
             ButtonGroup {
               options: [{ value: "public", label: win.t("settings.public") }, { value: "private", label: win.t("settings.private") }]
               value: win.selectedEffective.private ? "private" : "public"
@@ -258,9 +325,9 @@ FloatingWindow {
 
           Row {
             spacing: 10
-            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.lockMode"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 140 }
+            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.lockMode"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 90 }
             ButtonGroup {
-              options: [{ value: "inherit", label: win.t("settings.inheritValue").arg(win.modeLabel(win.defs.lockMode)) },
+              options: [{ value: "inherit", label: win.t("settings.inherit") },
                         { value: "immediate", label: win.t("settings.immediate") }, { value: "delay", label: win.t("settings.delay") }]
               value: win.selectedEntry.lockMode || "inherit"
               onChanged: function(v) { win.saveWorkspace("lockMode", v === "inherit" ? null : v) }
@@ -270,7 +337,7 @@ FloatingWindow {
           Row {
             spacing: 10
             visible: win.selectedEffective.lockMode === "delay"
-            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.delaySeconds"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 140 }
+            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.delaySeconds"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 90 }
             Button { text: "−"; bordered: true; onClicked: win.saveWorkspace("delaySeconds", win.stepDelay(win.selectedEffective.delaySeconds, -1)) }
             Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.formatDelay(win.selectedEffective.delaySeconds); color: Commons.Color.foreground; font.family: Style.font.family; font.pixelSize: Style.font.body; width: 80; horizontalAlignment: Text.AlignHCenter }
             Button { text: "+"; bordered: true; onClicked: win.saveWorkspace("delaySeconds", win.stepDelay(win.selectedEffective.delaySeconds, 1)) }
@@ -279,23 +346,35 @@ FloatingWindow {
 
           Row {
             spacing: 10
-            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.passwordMode"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 140 }
+            Text { anchors.verticalCenter: parent.verticalCenter; textFormat: Text.PlainText; text: win.t("settings.passwordMode"); color: Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; width: 90 }
             ButtonGroup {
-              options: [{ value: "inherit", label: win.t("settings.inheritValue").arg(win.passwordLabel(win.defs.passwordMode)) },
+              options: [{ value: "inherit", label: win.t("settings.inherit") },
                         { value: "system", label: win.t("settings.passwordSystem") }, { value: "own", label: win.t("settings.passwordOwn") }]
               value: win.selectedEntry.passwordMode || "inherit"
               onChanged: function(v) { win.saveWorkspace("passwordMode", v === "inherit" ? null : v) }
             }
           }
+
+          // --- clave propia (solo si este workspace usa clave propia)
+          Column {
+            visible: win.selectedEffective.passwordMode === "own"
+            width: parent.width
+            spacing: 8
+            Text { textFormat: Text.PlainText; text: win.ownStatusText(); color: win.ownMessage || (win.service && win.service.ownStatus === "error") ? Commons.Color.urgent : Commons.Color.muted; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall }
+            Row {
+              spacing: 10
+              PasswordField { id: ownNew; objectName: "ownNew"; implicitWidth: 200; placeholder: win.t("settings.ownNew"); onSubmitted: function(pw) { ownNew.value = pw; ownRepeat.forceActiveFocus() } }
+              PasswordField { id: ownRepeat; objectName: "ownRepeat"; implicitWidth: 200; placeholder: win.t("settings.ownRepeat"); onSubmitted: function(pw) { ownRepeat.value = pw; win.saveOwn() } }
+            }
+            Row {
+              spacing: 10
+              Button { text: win.t("settings.ownSave"); bordered: true; onClicked: win.saveOwn() }
+              Button { visible: win.selectedHasOwn; text: win.t("settings.ownRemove"); bordered: true; onClicked: win.service.removeOwnPassword(win.selectedWorkspace) }
+            }
+          }
         }
 
-        PanelSeparator { foreground: Commons.Color.foreground }
-
-        Button {
-          text: win.t("settings.close")
-          bordered: true
-          onClicked: win.service.closeSettings()
-        }
+      }
       }
     }
   }

@@ -23,6 +23,9 @@ Rectangle {
 
   function clear() { value = "" }
 
+  // Clic = foco (en la ventana de ajustes hay dos campos).
+  MouseArea { anchors.fill: parent; onClicked: root.forceActiveFocus() }
+
   Keys.onPressed: function(event) {
     if (busy) { event.accepted = true; return }
     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {

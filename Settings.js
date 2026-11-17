@@ -103,6 +103,15 @@ function withPrivate(settings, id, value) {
   return withWorkspaceField(settings, id, "private", value ? true : null)
 }
 
+// Lista de atajos permitidos con uno añadido o quitado (sin repetir, normalizada).
+function withAllowed(settings, chord, add) {
+  var out = normalize(settings)
+  var list = out.lockedAllowedShortcuts.filter(function(c) { return c !== chord })
+  if (add && isChord(chord)) list.push(chord)
+  out.lockedAllowedShortcuts = list
+  return normalize(out)
+}
+
 // Configuración efectiva de un workspace: lo suyo o, si falta, lo de defaults.
 function effective(settings, id) {
   var s = normalize(settings)

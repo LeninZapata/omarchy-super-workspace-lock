@@ -161,6 +161,15 @@ Panel {
         PanelSeparator { foreground: root.foreground }
 
         Button {
+          visible: root.workspaceIds.length > 0
+          text: strings.t("panel.lockNow")
+          iconText: "󰌾"
+          bordered: true
+          // Bloquea ya el workspace activo (privado o puntual) y cierra el panel.
+          onClicked: { if (root.service) root.service.lockCurrent(); root.close() }
+        }
+
+        Button {
           text: strings.t("panel.settings")
           iconText: "󰒓"
           bordered: true
