@@ -46,3 +46,14 @@ function setPrivate(state, id, value) {
 function unlockOk(state, id) {
   return { privateIds: state.privateIds, lockedIds: without(state.lockedIds, Number(id)), previousWorkspaceId: state.previousWorkspaceId }
 }
+
+// Los privados cambiaron fuera (settings.json recargado). Lo ya bloqueado sigue
+// bloqueado aunque deje de ser privado: solo la clave lo abre.
+function syncPrivate(state, ids) {
+  return { privateIds: uniq(ids || []), lockedIds: state.lockedIds, previousWorkspaceId: state.previousWorkspaceId }
+}
+
+// Quitar `private` a un workspace bloqueado se rechaza: sería abrirlo sin clave.
+function canSetPrivate(state, id, value) {
+  return !!value || !isLocked(state, id)
+}

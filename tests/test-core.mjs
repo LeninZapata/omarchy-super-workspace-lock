@@ -34,4 +34,16 @@ const before = C.start([4]);
 C.unlockOk(before, 4);
 assert.deepEqual(plain(before.lockedIds), [4]);
 
+// quitar private a uno bloqueado se rechaza; a uno abierto, no
+let r = C.start([5]);
+assert.equal(C.canSetPrivate(r, 5, false), false);
+assert.equal(C.canSetPrivate(r, 5, true), true);
+r = C.unlockOk(r, 5);
+assert.equal(C.canSetPrivate(r, 5, false), true);
+
+// recargar ajustes no abre lo bloqueado aunque ya no sea privado
+r = C.syncPrivate(C.start([6]), [7]);
+assert.deepEqual(plain(r.privateIds), [7]);
+assert.deepEqual(plain(r.lockedIds), [6]);
+
 console.log('core ok');

@@ -22,11 +22,64 @@ Item {
   property int activeWorkspaceId: -1
   property bool activeLocked: false
 
-  // Ajustes: por ahora los de por defecto; leer/guardar settings.json llega en A3.
+  // ---------------------------------------------------------------- ajustes
+  // ~/.config/omarchy/super-workspace-lock/settings.json (DATOS.md). Carpeta 700 y
+  // archivo 600, impuestos al arrancar también a lo que ya existía. Ningún
+  // FileView tiene ruta hasta storageReady.
+  readonly property string configDir: Quickshell.env("HOME") + "/.config/omarchy/super-workspace-lock"
+  property bool storageReady: false
+  property bool settingsLoaded: false
+  property bool settingsBroken: false
   property var settings: Settings.defaults()
 
-  // Estado de Core.js; los privados aún no se guardan (llega en A3).
+  // Estado de Core.js. Arranca de verdad con la primera lectura de settings.json:
+  // todo privado empieza bloqueado.
   property var lockState: Core.start([])
+
+  function applySettingsText(raw) {
+    var parsed = null
+    try { parsed = JSON.parse(raw && raw.trim().length > 0 ? raw : "{}") } catch (e) { parsed = null }
+    // Archivo roto: valores por defecto y el archivo NO se pisa hasta el próximo cambio.
+    settingsBroken = parsed === null
+    settings = Settings.normalize(parsed)
+    var ids = Settings.privateIds(settings)
+    if (!settingsLoaded) {
+      settingsLoaded = true
+      var started = Core.start(ids)
+      setLockState(Core.focusChanged(started, -1, activeWorkspaceId > 0 ? activeWorkspaceId : -1))
+    } else {
+      setLockState(Core.syncPrivate(lockState, ids))
+    }
+  }
+
+  function savePrivate(id, value) {
+    settings = Settings.withPrivate(settings, id, value)
+    settingsBroken = false
+    settingsFile.setText(JSON.stringify(settings, null, 2) + "\n")
+    setLockState(Core.syncPrivate(lockState, Settings.privateIds(settings)))
+  }
+
+  Process {
+    id: initProc
+    command: ["sh", "-c", 'umask 077\n'
+              + 'mkdir -p "$1"\n'
+              + 'chmod 700 "$1"\n'
+              + '[ -e "$1/settings.json" ] || [ -L "$1/settings.json" ] || : > "$1/settings.json"\n'
+              + 'find "$1" -maxdepth 1 -type f ! -perm 600 -exec chmod 600 {} +',
+              "init", root.configDir]
+    onExited: root.storageReady = true
+  }
+
+  FileView {
+    id: settingsFile
+    path: root.storageReady ? root.configDir + "/settings.json" : ""
+    watchChanges: true
+    atomicWrites: true
+    printErrors: false
+    onLoaded: root.applySettingsText(text())
+    onLoadFailed: if (root.storageReady) root.applySettingsText("{}")
+    onFileChanged: reload()
+  }
 
   function setLockState(next) {
     lockState = next
@@ -121,6 +174,7 @@ Item {
   Component.onCompleted: {
     syncFocus()
     refreshHyprland()
+    initProc.running = true
   }
 
   Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
@@ -143,6 +197,8 @@ Item {
         version: root.manifest && root.manifest.version ? root.manifest.version : "",
         activeWorkspaceId: root.activeWorkspaceId,
         private: root.lockState.privateIds,
+        settingsLoaded: root.settingsLoaded,
+        settingsBroken: root.settingsBroken,
         locked: root.lockState.lockedIds,
         gateOn: root.gateOn,
         blurActive: root.blurActive,
@@ -155,7 +211,10 @@ Item {
     function setPrivate(id: string, value: string): string {
       var n = parseInt(id, 10)
       if (!(n > 0)) return "error: id"
-      root.setLockState(Core.setPrivate(root.lockState, n, value === "true"))
+      var on = value === "true"
+      if (!root.settingsLoaded) return "error: settings not loaded"
+      if (!Core.canSetPrivate(root.lockState, n, on)) return "error: locked"
+      root.savePrivate(n, on)
       return "ok"
     }
   }
