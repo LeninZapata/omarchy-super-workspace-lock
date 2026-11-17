@@ -2,9 +2,10 @@
 
 > What changed, by version (newest first; the last 10 are kept).
 
-## 0.3.1 - 2026-11-17 16:57
+## 0.3.1 - 2026-11-17 18:24
 ---
 - [new] README with demo recordings
+- [new] Marketplace preview image
 - [fix] The settings window opens focused, centered and at its own size (on a scaled screen Omarchy's floating size cut it off), always on the Workspaces tab with the current workspace selected
 - [fix] The bar panel's keyboard cursor starts at the top each time it opens
 
