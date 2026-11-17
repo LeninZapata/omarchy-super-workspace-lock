@@ -1,9 +1,6 @@
 # Changelog — Super Workspace Lock
 
-> Qué cambió, por versión (la más nueva arriba; se guardan las últimas 10). Editable a mano.
-> Lo mantiene /dev:changelog, que también corre al cerrar sesión con /dev:resumen.
-> En nvim, si una palabra bien escrita sale subrayada (un término técnico): cursor encima y `zg`
-> la añade a tu diccionario; `zw` la deshace y `z=` sugiere la correcta.
+> What changed, by version (newest first; the last 10 are kept).
 
 ## 0.1.0 - 2026-11-17 14:42
 ---
