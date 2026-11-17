@@ -1,4 +1,5 @@
 """vis.py: el original nunca se pisa con un 0, show restaura solo lo que está en ese workspace."""
+import sys; sys.dont_write_bytecode = True
 import importlib.util, os, sys
 spec = importlib.util.spec_from_file_location("vis", os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "vis.py"))
 vis = importlib.util.module_from_spec(spec); spec.loader.exec_module(vis)
