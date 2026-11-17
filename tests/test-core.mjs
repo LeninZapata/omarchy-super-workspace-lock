@@ -7,7 +7,7 @@ const plain = s => JSON.parse(JSON.stringify(s));
 
 // arranque: privados bloqueados, ids saneados y ordenados
 let s = C.start([3, '2', 2, 0, -1, 'x']);
-assert.deepEqual(plain(s), { privateIds: [2, 3], lockedIds: [2, 3], previousWorkspaceId: -1 });
+assert.deepEqual(plain(s), { privateIds: [2, 3], lockedIds: [2, 3], previousWorkspaceId: -1, pending: {} });
 
 // marcar privado no bloquea; salir de él sí
 s = C.start([]);
@@ -78,5 +78,28 @@ z = C.sessionLocked(z);
 assert.deepEqual(plain(z.lockedIds), [2, 3, 5]);
 assert.equal(C.hasUnlockedPrivate(z), false);
 assert.equal(C.hasUnlockedPrivate(C.start([])), false);
+
+// retardo: salir deja pendiente; volver antes lo limpia; vencido → bloqueado
+let d = C.setPrivate(C.start([]), 4, true);
+d = C.focusChanged(d, 4, 1, 1000, { 4: 10 });
+assert.deepEqual(plain(d.lockedIds), []);
+assert.deepEqual(plain(d.pending), { '4': 11000 });
+assert.equal(C.hasPending(d), true);
+assert.equal(C.tick(d, 5000), d, 'sin vencidos no cambia');
+let back = C.focusChanged(d, 1, 4, 6000, { 4: 10 });
+assert.deepEqual(plain(back.pending), {}, 'volver antes de tiempo lo deja abierto');
+assert.deepEqual(plain(back.lockedIds), []);
+d = C.tick(d, 11000);
+assert.deepEqual(plain(d.lockedIds), [4]);
+assert.deepEqual(plain(d.pending), {});
+// sin retardo sigue siendo inmediato
+assert.deepEqual(plain(C.focusChanged(C.setPrivate(C.start([]), 4, true), 4, 1, 0, {}).lockedIds), [4]);
+// el lock de sesión vacía los pendientes y bloquea
+let sp = C.focusChanged(C.setPrivate(C.start([]), 4, true), 4, 1, 0, { 4: 30 });
+sp = C.sessionLocked(sp);
+assert.deepEqual(plain(sp.lockedIds), [4]);
+assert.deepEqual(plain(sp.pending), {});
+// dejar de ser privado quita su pendiente
+assert.deepEqual(plain(C.syncPrivate(C.focusChanged(C.setPrivate(C.start([]), 4, true), 4, 1, 0, { 4: 30 }), []).pending), {});
 
 console.log('core ok');

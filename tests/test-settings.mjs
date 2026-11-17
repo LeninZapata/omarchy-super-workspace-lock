@@ -43,4 +43,13 @@ assert.deepEqual(plain(w.workspaces), { '3': { private: true } });
 assert.deepEqual(plain(S.withPrivate(w, 3, false).workspaces), {});
 assert.equal(S.normalize({ defaults: { passwordMode: 'x' } }).defaults.passwordMode, 'system');
 
+// retardo: rangos 5..3600 enteros; heredar de defaults; delays() solo de privados en delay
+let dl = S.normalize({ defaults: { lockMode: 'delay', delaySeconds: 30 },
+  workspaces: { '2': { private: true }, '3': { private: true, lockMode: 'immediate' }, '4': { private: true, delaySeconds: 10 },
+                '5': { lockMode: 'delay', delaySeconds: 4 }, '6': { private: true, delaySeconds: 99999 } } });
+assert.deepEqual(plain(dl.workspaces['5']), { lockMode: 'delay' }, 'delay fuera de rango se descarta');
+assert.deepEqual(plain(S.delays(dl)), { '2': 30, '4': 10, '6': 30 });
+assert.equal(S.effective(dl, 3).lockMode, 'immediate');
+assert.equal(S.normalize({ defaults: { delaySeconds: 2.5 } }).defaults.delaySeconds, 60);
+
 console.log('settings ok');

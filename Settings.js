@@ -13,13 +13,20 @@ var DEFAULT_ALLOWED = [
 ]
 
 var PASSWORD_MODES = ["system", "own"]
+var LOCK_MODES = ["immediate", "delay"]
+var DELAY_MIN = 5
+var DELAY_MAX = 3600
+
+function validDelay(v) {
+  return typeof v === "number" && Math.floor(v) === v && v >= DELAY_MIN && v <= DELAY_MAX
+}
 
 function defaults() {
   return {
     schemaVersion: SCHEMA_VERSION,
     lockShortcut: "SUPER + CTRL + SHIFT + L",
     lockedAllowedShortcuts: DEFAULT_ALLOWED.slice(),
-    defaults: { passwordMode: "system" },
+    defaults: { passwordMode: "system", lockMode: "immediate", delaySeconds: 60 },
     workspaces: {}
   }
 }
@@ -34,10 +41,13 @@ function normalize(raw) {
   var src = (raw && typeof raw === "object" && !Array.isArray(raw)) ? raw : {}
   var out = { schemaVersion: SCHEMA_VERSION, lockShortcut: d.lockShortcut,
               lockedAllowedShortcuts: d.lockedAllowedShortcuts,
-              defaults: { passwordMode: d.defaults.passwordMode }, workspaces: {} }
+              defaults: { passwordMode: d.defaults.passwordMode, lockMode: d.defaults.lockMode,
+                          delaySeconds: d.defaults.delaySeconds }, workspaces: {} }
 
   var sd = (src.defaults && typeof src.defaults === "object" && !Array.isArray(src.defaults)) ? src.defaults : {}
   if (PASSWORD_MODES.indexOf(sd.passwordMode) !== -1) out.defaults.passwordMode = sd.passwordMode
+  if (LOCK_MODES.indexOf(sd.lockMode) !== -1) out.defaults.lockMode = sd.lockMode
+  if (validDelay(sd.delaySeconds)) out.defaults.delaySeconds = sd.delaySeconds
 
   if (src.lockShortcut === "" || isChord(src.lockShortcut)) out.lockShortcut = src.lockShortcut
 
@@ -60,6 +70,8 @@ function normalize(raw) {
     var clean = {}
     if (entry.private === true) clean.private = true
     if (PASSWORD_MODES.indexOf(entry.passwordMode) !== -1) clean.passwordMode = entry.passwordMode
+    if (LOCK_MODES.indexOf(entry.lockMode) !== -1) clean.lockMode = entry.lockMode
+    if (validDelay(entry.delaySeconds)) clean.delaySeconds = entry.delaySeconds
     for (var k in clean) { out.workspaces[String(id)] = clean; break }
   }
   return out
@@ -97,6 +109,19 @@ function effective(settings, id) {
   var w = s.workspaces[String(id)] || {}
   return {
     private: w.private === true,
-    passwordMode: w.passwordMode || s.defaults.passwordMode
+    passwordMode: w.passwordMode || s.defaults.passwordMode,
+    lockMode: w.lockMode || s.defaults.lockMode,
+    delaySeconds: w.delaySeconds || s.defaults.delaySeconds
   }
+}
+
+// { id: segundos } de los privados con retardo efectivo (para Core.focusChanged).
+function delays(settings) {
+  var out = {}
+  var ids = privateIds(normalize(settings))
+  for (var i = 0; i < ids.length; i++) {
+    var e = effective(settings, ids[i])
+    if (e.lockMode === "delay") out[String(ids[i])] = e.delaySeconds
+  }
+  return out
 }

@@ -17,40 +17,80 @@ function without(ids, id) {
   return ids.filter(function(x) { return x !== id })
 }
 
+// Copia del estado con algunos campos cambiados. `pending` = { id: msLímite } de
+// los privados en modo retardo que se dejaron y aún no se bloquean.
+function make(state, changes) {
+  var out = { privateIds: state.privateIds, lockedIds: state.lockedIds,
+              previousWorkspaceId: state.previousWorkspaceId, pending: state.pending || {} }
+  for (var k in changes) out[k] = changes[k]
+  return out
+}
+
+function pendingWithout(pending, ids) {
+  var out = {}
+  for (var k in (pending || {})) if (ids.indexOf(Number(k)) === -1) out[k] = pending[k]
+  return out
+}
+
 // Al arrancar, todo privado empieza bloqueado: un reinicio no deja nada abierto.
 function start(privateIds) {
   var p = uniq(privateIds || [])
-  return { privateIds: p, lockedIds: p.slice(), previousWorkspaceId: -1 }
+  return { privateIds: p, lockedIds: p.slice(), previousWorkspaceId: -1, pending: {} }
 }
 
 function isPrivate(state, id) { return state.privateIds.indexOf(Number(id)) !== -1 }
 function isLocked(state, id) { return state.lockedIds.indexOf(Number(id)) !== -1 }
 
-// El workspace activo pasó de `fromId` a `toId`: el que se deja, si es privado, se bloquea.
-function focusChanged(state, fromId, toId) {
-  var from = Number(fromId)
+// El workspace activo pasó de `fromId` a `toId`: el que se deja, si es privado, se
+// bloquea; si tiene retardo (`delays[id]` en segundos), queda pendiente hasta
+// nowMs + retardo. Volver a uno pendiente lo deja abierto.
+function focusChanged(state, fromId, toId, nowMs, delays) {
+  var from = Number(fromId), to = Number(toId)
   var locked = state.lockedIds
-  if (from > 0 && from !== Number(toId) && isPrivate(state, from) && !isLocked(state, from))
-    locked = uniq(locked.concat([from]))
-  return { privateIds: state.privateIds, lockedIds: locked, previousWorkspaceId: Number(toId) }
+  var pending = pendingWithout(state.pending, [to])
+  if (from > 0 && from !== to && isPrivate(state, from) && !isLocked(state, from)) {
+    var d = delays ? Number(delays[from]) || 0 : 0
+    if (d > 0) pending[String(from)] = (Number(nowMs) || 0) + d * 1000
+    else locked = uniq(locked.concat([from]))
+  }
+  return make(state, { lockedIds: locked, previousWorkspaceId: to, pending: pending })
+}
+
+// Pasa el tiempo: los pendientes vencidos se bloquean.
+function tick(state, nowMs) {
+  var due = [], pending = {}
+  for (var k in (state.pending || {})) {
+    if (state.pending[k] <= nowMs) due.push(Number(k))
+    else pending[k] = state.pending[k]
+  }
+  if (due.length === 0) return state
+  return make(state, { lockedIds: uniq(state.lockedIds.concat(due)), pending: pending })
+}
+
+function hasPending(state) {
+  for (var k in (state.pending || {})) return true
+  return false
 }
 
 // Marcar o desmarcar privado. No bloquea al marcar: el bloqueo llega al salir.
 function setPrivate(state, id, value) {
   var n = Number(id)
   var p = value ? uniq(state.privateIds.concat([n])) : without(state.privateIds, n)
-  return { privateIds: p, lockedIds: state.lockedIds, previousWorkspaceId: state.previousWorkspaceId }
+  return make(state, { privateIds: p, pending: value ? state.pending : pendingWithout(state.pending, [n]) })
 }
 
 // La clave correcta quita el bloqueo de ese workspace (sigue siendo privado).
 function unlockOk(state, id) {
-  return { privateIds: state.privateIds, lockedIds: without(state.lockedIds, Number(id)), previousWorkspaceId: state.previousWorkspaceId }
+  return make(state, { lockedIds: without(state.lockedIds, Number(id)), pending: pendingWithout(state.pending, [Number(id)]) })
 }
 
 // Los privados cambiaron fuera (settings.json recargado). Lo ya bloqueado sigue
 // bloqueado aunque deje de ser privado: solo la clave lo abre.
 function syncPrivate(state, ids) {
-  return { privateIds: uniq(ids || []), lockedIds: state.lockedIds, previousWorkspaceId: state.previousWorkspaceId }
+  var p = uniq(ids || [])
+  var gone = []
+  for (var k in (state.pending || {})) if (p.indexOf(Number(k)) === -1) gone.push(Number(k))
+  return make(state, { privateIds: p, pending: pendingWithout(state.pending, gone) })
 }
 
 // Quitar `private` a un workspace bloqueado se rechaza: sería abrirlo sin clave.
@@ -90,12 +130,12 @@ function faillockWait(text, nowMs, deny, unlockSec) {
 function lockNow(state, id) {
   var n = Number(id)
   if (!(n > 0)) return state
-  return { privateIds: state.privateIds, lockedIds: uniq(state.lockedIds.concat([n])), previousWorkspaceId: state.previousWorkspaceId }
+  return make(state, { lockedIds: uniq(state.lockedIds.concat([n])), pending: pendingWithout(state.pending, [n]) })
 }
 
 // Se bloqueó la sesión entera: todo privado vuelve a quedar bloqueado.
 function sessionLocked(state) {
-  return { privateIds: state.privateIds, lockedIds: uniq(state.lockedIds.concat(state.privateIds)), previousWorkspaceId: state.previousWorkspaceId }
+  return make(state, { lockedIds: uniq(state.lockedIds.concat(state.privateIds)), pending: {} })
 }
 
 // ¿Hay algún privado abierto? Solo entonces vale la pena vigilar el lock de sesión.

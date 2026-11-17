@@ -49,7 +49,7 @@ Item {
       settingsLoaded = true
       applyShortcut()
       var started = Core.start(ids)
-      setLockState(Core.focusChanged(started, -1, activeWorkspaceId > 0 ? activeWorkspaceId : -1))
+      setLockState(Core.focusChanged(started, -1, activeWorkspaceId > 0 ? activeWorkspaceId : -1, Date.now(), {}))
     } else {
       setLockState(Core.syncPrivate(lockState, ids))
     }
@@ -60,6 +60,19 @@ Item {
     settingsBroken = false
     settingsFile.setText(JSON.stringify(settings, null, 2) + "\n")
     setLockState(Core.syncPrivate(lockState, Settings.privateIds(settings)))
+  }
+
+  // ------------------------------------------------------------- retardo (B)
+  // Privados en modo delay que se dejaron: se bloquean al vencer su plazo.
+  Timer {
+    id: delayTick
+    interval: 1000
+    repeat: true
+    running: Core.hasPending(root.lockState)
+    onTriggered: {
+      var next = Core.tick(root.lockState, Date.now())
+      if (next !== root.lockState) root.setLockState(next)
+    }
   }
 
   // ------------------------------------------------------- lock de sesión (H1)
@@ -140,7 +153,7 @@ Item {
   function syncFocus() {
     var id = Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
     if (id <= 0 || id === activeWorkspaceId) return
-    var next = Core.focusChanged(lockState, activeWorkspaceId, id)
+    var next = Core.focusChanged(lockState, activeWorkspaceId, id, Date.now(), Settings.delays(settings))
     activeWorkspaceId = id
     setLockState(next)
   }
@@ -275,6 +288,7 @@ Item {
         settingsLoaded: root.settingsLoaded,
         settingsBroken: root.settingsBroken,
         locked: root.lockState.lockedIds,
+        pending: root.lockState.pending,
         gateOn: root.gateOn,
         blurActive: root.blurActive,
         allowedMissing: root.missingAllowed,
