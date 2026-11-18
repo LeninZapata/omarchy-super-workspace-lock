@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/demo/hero.gif" alt="Four open workspaces; workspace 2 is made private from the bar, locks when you come back to it, and its password opens it" width="720"></p>
+<p align="center"><img src="docs/hero.jpg" alt="Three workspaces side by side: the private one in the middle is covered with a blur and asks for its password, the two on either side stay open" width="900"></p>
 
 # Super Workspace Lock
 
@@ -7,12 +7,18 @@ leave it, it locks: the next time you come back it is covered with a heavy blur 
 your password before it shows anything. Your system password always works, and each
 workspace can also have a password of its own.
 
-**Status: v0.3.3.** Lock right away or after some time away, the system password or a
+**Status: v0.3.4.** Lock right away or after some time away, the system password or a
 per-workspace one, a lock icon in the bar, a settings window you can drive with the keyboard,
 a shortcut to lock the workspace you are on, and a lock that comes back when the whole session
 is locked.
 
 ## See it
+
+**Make a workspace private from the bar.** Turn its switch on in the bar panel and nothing
+changes while you are on it. Leave it, come back, and it is already covered and asking for the
+password; the password opens it again.
+
+![Four open workspaces; workspace 2 is made private from the bar, locks when you come back to it, and its password opens it](docs/demo/hero.gif)
 
 **Only a few shortcuts get past the lock.** While a workspace is locked, the keyboard belongs to
 the password card: Super+Q does not close the window behind the blur and Alt+Tab does not move the
