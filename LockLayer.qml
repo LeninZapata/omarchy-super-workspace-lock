@@ -58,7 +58,12 @@ PanelWindow {
 
   Auth {
     id: auth
-    onSucceeded: { lockWin.errorKey = ""; lockWin.unlocked(lockWin.workspaceId) }
+    // Se abre el workspace para el que se verificó la clave (Auth.pendingWorkspace), aunque
+    // mientras tanto se haya cambiado a otro: ese otro sigue bloqueado.
+    onSucceeded: function(workspaceId) {
+      if (workspaceId === lockWin.workspaceId) lockWin.errorKey = ""
+      lockWin.unlocked(workspaceId)
+    }
     onFailed: function(wait) {
       lockWin.waitSeconds = wait
       lockWin.errorKey = wait > 0 ? "auth.locked" : "auth.wrong"

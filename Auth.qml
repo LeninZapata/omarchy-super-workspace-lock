@@ -18,16 +18,21 @@ Item {
 
   property bool busy: false
   property string pending: ""
+  // Workspace para el que se escribió la clave. La verificación es asíncrona (scrypt o PAM) y
+  // se puede cambiar de workspace mientras tanto: el éxito abre ESTE, nunca el que esté activo
+  // al llegar la respuesta (si no, la clave propia de uno abriría otro con clave distinta).
+  property int pendingWorkspace: -1
   // Ruta de hash.py (junto a este archivo) y workspace cuya clave propia se mira.
   readonly property string hashScript: String(Qt.resolvedUrl("hash.py")).replace(/^file:\/\//, "")
 
-  signal succeeded()
+  signal succeeded(int workspaceId)
   // waitSeconds > 0: faillock activo, hay que esperar.
   signal failed(int waitSeconds)
 
   function submit(password, workspaceId, useOwn) {
     if (busy || !password || password.length === 0) return
     pending = password
+    pendingWorkspace = workspaceId
     busy = true
     if (useOwn && workspaceId > 0) {
       ownProc.secret = password
@@ -62,7 +67,7 @@ Item {
       auth.pending = ""
       if (result === PamResult.Success) {
         auth.busy = false
-        auth.succeeded()
+        auth.succeeded(auth.pendingWorkspace)
       } else auth.finishFailure()
     }
     onError: function(error) { auth.finishFailure() }
@@ -81,7 +86,7 @@ Item {
       if (exitCode === 0) {
         auth.pending = ""
         auth.busy = false
-        auth.succeeded()
+        auth.succeeded(auth.pendingWorkspace)
       } else auth.startSystem()
     }
   }

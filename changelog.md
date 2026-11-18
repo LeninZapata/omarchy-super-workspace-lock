@@ -2,6 +2,10 @@
 
 > What changed, by version (newest first; the last 10 are kept).
 
+## 0.3.4 - 2026-11-18 13:45
+---
+- [fix] A password unlocks only the workspace it was typed for: verification is asynchronous (scrypt or PAM), and switching workspaces while it ran opened whichever workspace was active when the result arrived, even one with a different password. Reported in the marketplace review
+
 ## 0.3.3 - 2026-11-17 18:45
 ---
 - [update] A locked workspace now arrives already covered: it carries a cover window of its own (blurred wallpaper and the lock card) that slides in with Hyprland's switch animation, so nothing of it, not even the bare wallpaper, shows while switching
