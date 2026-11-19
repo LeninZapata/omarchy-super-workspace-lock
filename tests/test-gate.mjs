@@ -42,10 +42,11 @@ const bind = (modmask, key, description, submap = '') => ({ modmask, key, descri
 const binds = JSON.stringify([
   bind(65, 'L', 'Super Workspace Lock: lock this workspace'),     // SUPER+SHIFT+L: nuestro (anterior)
   bind(68, 'L', 'Lock system'),                                    // SUPER+CTRL+L: de Omarchy
-  bind(64, 'L', 'something', 'swl-locked'),                        // en otro submap: no cuenta
+  bind(64, 'L', 'something', 'swl-locked'),                        // submap propio de la capa: no cuenta
+  bind(72, 'R', 'Resize', 'resize'),                               // SUPER+ALT+R en otro submap: ajeno
 ]);
 const owners = G.bindOwners(binds);
-assert.deepEqual(JSON.parse(JSON.stringify(owners)), { 'SUPER + SHIFT + L': { own: 1, foreign: 0 }, 'SUPER + CTRL + L': { own: 0, foreign: 1 } });
+assert.deepEqual(JSON.parse(JSON.stringify(owners)), { 'SUPER + SHIFT + L': { own: 1, foreign: 0 }, 'SUPER + CTRL + L': { own: 0, foreign: 1 }, 'SUPER + ALT + R': { own: 0, foreign: 1 } });
 assert.equal(G.bindOwners('not json'), null);
 
 // tecla libre: suelta el anterior (nuestro) y pone el nuevo
@@ -61,6 +62,13 @@ const taken = G.shortcutLua('SUPER + CTRL + L', [], owners);
 assert.deepEqual([...taken.applied], []);
 assert.equal(taken.conflict, 'SUPER + CTRL + L');
 assert.ok(!taken.lua.includes('SUPER + CTRL + L'), 'nada sobre un atajo ajeno');
+
+// una tecla usada solo en OTRO submap también es ajena: hl.unbind la quitaría de ahí
+const sub = G.shortcutLua('SUPER + ALT + R', [], owners);
+assert.equal(sub.conflict, 'SUPER + ALT + R');
+assert.equal(sub.lua, '');
+const subPrev = G.bindOwners(JSON.stringify([bind(73, 'R', 'Super Workspace Lock: lock this workspace'), bind(73, 'R', 'Resize', 'resize')]));
+assert.ok(!G.shortcutLua('', ['SUPER + ALT + SHIFT + R'], subPrev).lua.includes('unbind'), 'un anterior compartido con otro submap no se suelta');
 
 // un anterior que ahora comparte tecla con otro no se suelta
 const shared = G.bindOwners(JSON.stringify([bind(65, 'L', 'Super Workspace Lock: lock this workspace'), bind(65, 'L', 'mine')]));

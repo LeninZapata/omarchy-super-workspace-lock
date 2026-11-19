@@ -127,9 +127,12 @@ var LOCK_CMD = "omarchy-shell leninzapata.super-workspace-lock lockCurrent"
 var LOCK_DESC = "Super Workspace Lock: lock this workspace"
 var MODMASK = [[64, "SUPER"], [4, "CTRL"], [8, "ALT"], [1, "SHIFT"]]
 
-// `hyprctl binds -j` → { "SUPER + CTRL + L": { own: n, foreign: n } }, solo el mapa
-// principal (submap ""). Los atajos de Omarchy salen como dispatcher "__lua", así que
-// el dueño se reconoce por la descripción: la nuestra es LOCK_DESC. null si no se pudo leer.
+// `hyprctl binds -j` → { "SUPER + CTRL + L": { own: n, foreign: n } }, contando TODOS
+// los submaps: hl.unbind quita la tecla de todos ellos, así que un atajo ajeno en
+// cualquier submap la hace ajena. Solo se salta el submap propio (SUBMAP), que el plugin
+// rehace cada vez que muestra la capa. Los atajos de Omarchy salen como dispatcher
+// "__lua", así que el dueño se reconoce por la descripción: la nuestra es LOCK_DESC.
+// null si no se pudo leer.
 function bindOwners(text) {
   var list
   try { list = JSON.parse(text) } catch (e) { return null }
@@ -137,7 +140,7 @@ function bindOwners(text) {
   var map = {}
   for (var i = 0; i < list.length; i++) {
     var b = list[i]
-    if (!b || (b.submap || "") !== "" || b.mouse) continue
+    if (!b || (b.submap || "") === SUBMAP || b.mouse) continue
     var mods = []
     for (var j = 0; j < MODMASK.length; j++)
       if ((Number(b.modmask) || 0) & MODMASK[j][0]) mods.push(MODMASK[j][1])

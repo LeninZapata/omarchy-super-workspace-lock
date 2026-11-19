@@ -3,15 +3,16 @@
 
   binds.py release "SUPER + CTRL + SHIFT + L" [...]
 
-`hl.unbind(tecla)` quita TODO lo que haya en esa tecla, así que antes se lee
-`hyprctl binds -j` y solo se suelta una tecla del mapa principal en la que todo lo que hay
-lleva nuestra descripción. Si la lista no se puede leer, no se toca nada (sale con 1).
+`hl.unbind(tecla)` quita TODO lo que haya en esa tecla, en TODOS los submaps, así que antes
+se lee `hyprctl binds -j` y solo se suelta una tecla en la que todo lo que hay, en cualquier
+submap, lleva nuestra descripción (el submap propio de la capa no cuenta: lo rehace el plugin). Si la lista no se puede leer, no se toca nada (sale con 1).
 Lo usa Service.qml al cerrarse el plugin, cuando ya no puede esperar una lectura async.
 """
 import json, subprocess, sys
 
 DESC = "Super Workspace Lock: lock this workspace"     # = Gate.LOCK_DESC
 MODS = ((64, "SUPER"), (4, "CTRL"), (8, "ALT"), (1, "SHIFT"))
+SUBMAP = "swl-locked"                                   # = Gate.SUBMAP
 
 
 def chord(b):
@@ -20,7 +21,7 @@ def chord(b):
 
 
 def owners(text):
-    """{ "SUPER + CTRL + L": {"own": n, "foreign": n} } del mapa principal; None si no se lee."""
+    """{ "SUPER + CTRL + L": {"own": n, "foreign": n} } de todos los submaps; None si no se lee."""
     try:
         binds = json.loads(text)
     except (TypeError, ValueError):
@@ -29,7 +30,7 @@ def owners(text):
         return None
     out = {}
     for b in binds:
-        if not isinstance(b, dict) or (b.get("submap") or "") != "" or b.get("mouse"):
+        if not isinstance(b, dict) or (b.get("submap") or "") == SUBMAP or b.get("mouse"):
             continue
         e = out.setdefault(chord(b), {"own": 0, "foreign": 0})
         e["own" if b.get("description") == DESC else "foreign"] += 1

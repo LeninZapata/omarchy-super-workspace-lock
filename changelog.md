@@ -2,6 +2,10 @@
 
 > What changed, by version (newest first; the last 10 are kept).
 
+## 0.3.7 - 2026-11-19 17:21
+---
+- [fix] The lock shortcut's ownership check now looks at every Hyprland submap, not just the main key map: hl.unbind removes a key from all submaps, so a key that something else uses in any submap is treated as taken (never set, never released). Only the plugin's own lock-layer submap is ignored, since the plugin rebuilds it. Reported in the marketplace review
+
 ## 0.3.6 - 2026-11-19 15:06
 ---
 - [fix] Releasing the lock shortcut never removes anything else on that key: if Hyprland's bind list can't be read, nothing is released or set (it retries), and on unload the new binds.py releases a key only when every bind on it is the plugin's. Reported in the marketplace review
