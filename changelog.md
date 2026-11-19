@@ -2,6 +2,12 @@
 
 > What changed, by version (newest first; the last 10 are kept).
 
+## 0.3.6 - 2026-11-19 15:06
+---
+- [fix] Releasing the lock shortcut never removes anything else on that key: if Hyprland's bind list can't be read, nothing is released or set (it retries), and on unload the new binds.py releases a key only when every bind on it is the plugin's. Reported in the marketplace review
+- [fix] If the window list can't be read, vis.py leaves the saved opacities alone instead of treating it as "no windows" and forgetting them; the watcher retries, so open windows can no longer stay invisible because of a failed query. Reported in the marketplace review
+- [new] binds.py, the ownership-checked release of the lock shortcut
+
 ## 0.3.5 - 2026-11-19 13:40
 ---
 - [fix] The lock shortcut never takes over a key that something else already uses: before setting it, the plugin reads Hyprland's binds and only sets or releases its own (recognized by its description). A taken key is left alone and the settings window says so under "Lock shortcut". Reported in the marketplace review

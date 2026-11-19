@@ -70,14 +70,23 @@ assert.ok(!G.shortcutLua('SUPER + ALT + K', ['SUPER + SHIFT + L'], shared).lua.i
 const again = G.shortcutLua('SUPER + SHIFT + L', [], owners);
 assert.ok(again.lua.startsWith('pcall(function() hl.unbind([[SUPER + SHIFT + L]]) end)') && again.applied.length === 1);
 
-// sin poder leer los atajos: no se pone ninguno nuevo
-assert.deepEqual([...G.shortcutLua('SUPER + ALT + K', [], null).applied], []);
+// sin poder leer los atajos: no se suelta NI se pone nada; los anteriores siguen y se reintenta
+const blind = G.shortcutLua('SUPER + ALT + K', ['super shift + l'], null);
+assert.equal(blind.lua, '');
+assert.deepEqual([...blind.applied], ['SUPER + SHIFT + L']);
+assert.equal(blind.retry, true);
+assert.equal(G.shortcutLua('SUPER + ALT + K', [], owners).retry, false);
 
-// vacío = sin atajo, solo suelta (al cerrar el shell, sin lectura previa)
-const none = G.shortcutLua('', ['SUPER + CTRL + SHIFT + L']);
+// vacío = sin atajo: suelta el anterior solo si sigue siendo solo nuestro
+const none = G.shortcutLua('', ['SUPER + SHIFT + L'], owners);
 assert.deepEqual([...none.applied], []);
-assert.ok(none.lua.includes('hl.unbind([[SUPER + CTRL + SHIFT + L]])'));
+assert.ok(none.lua.includes('hl.unbind([[SUPER + SHIFT + L]])'));
 assert.ok(!none.lua.includes('hl.bind('));
+assert.equal(G.shortcutLua('', ['SUPER + CTRL + L'], owners).lua, '', 'una tecla ajena nunca se suelta');
+
+// al cerrarse el plugin: binds.py comprueba antes de soltar
+assert.deepEqual([...G.releaseCmd('/p/binds.py', ['super ctrl shift + l'])], ['python3', '-I', '/p/binds.py', 'release', 'SUPER + CTRL + SHIFT + L']);
+assert.equal(G.releaseCmd('/p/binds.py', []), null);
 
 // vigía: solo con un pid válido, y vigila el submap propio
 assert.equal(G.watchdogCmd(0), null);

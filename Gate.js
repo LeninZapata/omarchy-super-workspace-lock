@@ -153,22 +153,29 @@ function bindOwners(text) {
 // Registra el atajo de bloqueo (y suelta los anteriores). Nunca toca bindings.lua:
 // vive en Hyprland hasta la próxima recarga, tras la que Service.qml lo repone.
 // `owners` = bindOwners(hyprctl binds -j), leído justo antes. Solo se toca un atajo
-// que es NUESTRO: si la tecla ya la usa otra cosa, no se pisa y vuelve en `conflict`;
-// un anterior se suelta solo si en él no hay nada ajeno. Sin `owners` (no se pudo
-// leer) no se pone ninguno nuevo. Devuelve { lua, applied, conflict }.
+// que es NUESTRO (hl.unbind quita todo lo de esa tecla): si la tecla ya la usa otra
+// cosa, no se pisa y vuelve en `conflict`; un anterior se suelta solo si en él no hay
+// nada ajeno. Sin `owners` (no se pudo leer) no se suelta NI se pone nada: los
+// anteriores siguen puestos y `retry` pide volver a intentarlo.
+// Devuelve { lua, applied, conflict, retry }.
 function shortcutLua(chord, previous, owners) {
-  var lines = []
   var prev = previous || []
   var c = normChord(chord)
+  if (!owners) {
+    var still = []
+    for (var k = 0; k < prev.length; k++) { var q = normChord(prev[k]); if (q) still.push(q) }
+    return { lua: "", applied: still, conflict: "", retry: true }
+  }
+  var lines = []
   for (var i = 0; i < prev.length; i++) {
     var p = normChord(prev[i])
     if (!p || p === c) continue
-    if (owners && owners[p] && owners[p].foreign > 0) continue
-    if (owners && !owners[p]) continue                 // ya no está (recarga): nada que soltar
+    var po = owners[p]
+    if (!po || po.own === 0 || po.foreign > 0) continue   // ya no está, o comparte tecla
     lines.push("pcall(function() hl.unbind(" + luaStr(p) + ") end)")
   }
   var applied = [], conflict = ""
-  if (c && owners) {
+  if (c) {
     var o = owners[c] || { own: 0, foreign: 0 }
     if (o.foreign > 0) conflict = c
     else {
@@ -177,7 +184,17 @@ function shortcutLua(chord, previous, owners) {
       applied.push(c)
     }
   }
-  return { lua: lines.join("; "), applied: applied, conflict: conflict }
+  return { lua: lines.join("; "), applied: applied, conflict: conflict, retry: false }
+}
+
+// Al cerrarse el plugin: soltar los atajos puestos, pero comprobando antes que siguen
+// siendo solo nuestros (binds.py lee hyprctl binds -j; sin lectura no toca nada).
+function releaseCmd(script, applied) {
+  var chords = []
+  var list = applied || []
+  for (var i = 0; i < list.length; i++) { var c = normChord(list[i]); if (c) chords.push(c) }
+  if (chords.length === 0 || !script) return null
+  return ["python3", "-I", script, "release"].concat(chords)
 }
 
 // Devuelve a Lenin su Hyprland: `reload` repone blur, atajos y reglas, pero NO

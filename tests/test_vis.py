@@ -56,4 +56,17 @@ assert vis.apply_restore([("0xa", saved)], read=lambda a: state.get(a), write=fl
 assert vis.same("1", "1.000000") and not vis.same("0", "1") and not vis.same("garbage", "1")
 # vigía: ocultas fuera de un bloqueado = a reintentar
 assert vis.strays({"0xa": {}, "0xb": {}}, [{"address": "0xa", "ws": 3}, {"address": "0xb", "ws": 4}], {3}) == {4}
+# lista de ventanas ilegible: NO se olvida nada (antes: [] y se borraba todo)
+import tempfile, json as _json
+tmp = tempfile.mkdtemp()
+os.environ["SWL_HIDDEN"] = os.path.join(tmp, "hidden.json")
+saved_state = {"0xa": dict({"ws": 3}, **saved)}
+vis.save(saved_state)
+real_clients, real_set = vis.clients, vis.set_props
+vis.clients = lambda: None
+vis.set_props = lambda v: (_ for _ in ()).throw(AssertionError("no debe tocar Hyprland"))
+assert vis.window_list() is None
+vis.cmd_show({3}); vis.cmd_sync(set()); vis.cmd_restore_all()
+assert vis.load() == saved_state, vis.load()
+vis.clients, vis.set_props = real_clients, real_set
 print("vis ok")

@@ -14,6 +14,8 @@ hay nada que ver. La opacidad original se guarda y se devuelve tal cual.
 
 Una ventana solo sale del estado cuando Hyprland ACEPTÓ su opacidad (se comprueba con
 getprop); si la rechaza, se queda guardada y se reintenta (show/sync/restore-all/watch).
+Si la lista de ventanas no se puede leer, no se toca el estado: una lista vacía por error
+no es "ya no hay ventanas".
 
 Estado: $SWL_HIDDEN o ~/.local/state/omarchy/super-workspace-lock/hidden.json (700/600):
 { "0xADDR": { "ws": 3, "opacity": "1", "opacity_inactive": "0.96", "opacity_fullscreen": "1" } }
@@ -53,10 +55,13 @@ def hyprctl(*args):
 
 
 def clients():
+    """Ventanas de Hyprland; None si no se pudo leer (NUNCA [] por error)."""
     try:
-        return json.loads(hyprctl("clients", "-j"))
-    except ValueError:
-        return []
+        r = subprocess.run(["hyprctl", "clients", "-j"], capture_output=True, text=True, timeout=10)
+        data = json.loads(r.stdout) if r.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return data if isinstance(data, list) else None
 
 
 def number(text, fallback="1"):
@@ -158,8 +163,12 @@ OWN_TITLE = "Super Workspace Lock"   # la tapa y los ajustes: ventanas del plugi
 
 
 def window_list(ids=None):
+    """[{address, ws, props}] o None si la lista no se pudo leer."""
+    found = clients()
+    if found is None:
+        return None
     out = []
-    for c in clients():
+    for c in found:
         if (c.get("title") or "").startswith(OWN_TITLE):
             continue
         ws = c.get("workspace", {}).get("id", 0)
@@ -172,6 +181,8 @@ def window_list(ids=None):
 def cmd_hide(ids):
     data = load()
     wins = window_list(ids)
+    if wins is None:
+        return
     for w in wins:
         if w["address"] not in data:
             w["props"] = {p: number(hyprctl("getprop", "address:" + w["address"], p)) for p in PROPS}
@@ -188,12 +199,16 @@ def cmd_hide(ids):
 
 def cmd_show(ids):
     wins = window_list()
+    if wins is None:                          # sin lista no se olvida nada; el vigía reintenta
+        return
     data, restore = plan_show(load(), wins, ids)
     save(plan_keep(data, apply_restore(restore), wins))
 
 
 def cmd_sync(ids):
     wins = window_list()
+    if wins is None:
+        return
     data, restore = plan_show(load(), wins, set(w["ws"] for w in wins) - set(ids))
     save(plan_keep(data, apply_restore(restore), wins))
     if ids:
@@ -202,6 +217,8 @@ def cmd_sync(ids):
 
 def cmd_restore_all():
     wins = window_list()
+    if wins is None:
+        return
     data, restore = plan_show(load(), wins, set(w["ws"] for w in wins))
     save(plan_keep(data, apply_restore(restore), wins))
 
@@ -242,14 +259,16 @@ def cmd_watch():
             misses += 1
             if misses >= 3:                   # ~15 s sin plugin con ventanas ocultas
                 with locked_state():
-                    cmd_restore_all()
-                return
+                    cmd_restore_all()         # lo que no se pudo restaurar sigue guardado
+                if not load():
+                    return
         else:
             misses = 0
             # Ocultas fuera de un workspace bloqueado (una restauración que Hyprland
             # rechazó): se reintenta, pero solo si sigue así en dos vueltas seguidas, para
             # no destapar nada en el instante en que el plugin oculta antes de marcar.
-            now = strays(load(), window_list(), locked)
+            wins = window_list()
+            now = strays(load(), wins, locked) if wins is not None else set()
             retry, seen = now & seen, now
             if retry:
                 with locked_state():

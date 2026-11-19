@@ -118,9 +118,12 @@ Item {
         root.appliedShortcuts = s.applied
         root.shortcutConflict = s.conflict
         if (s.lua.length > 0) Quickshell.execDetached(["hyprctl", "eval", s.lua])
+        if (s.retry) shortcutRetry.restart()
       }
     }
   }
+  // No se pudo leer la lista de atajos: no se tocó nada; se reintenta.
+  Timer { id: shortcutRetry; interval: 3000; onTriggered: if (root.settingsLoaded) root.applyShortcut() }
 
   onSettingsChanged: if (settingsLoaded && Gate.normChord(settings.lockShortcut) !== (appliedShortcuts[0] || null)) applyShortcut()
 
@@ -443,8 +446,8 @@ Item {
 
   Component.onDestruction: {
     if (gateOn) Quickshell.execDetached(["hyprctl", "eval", Gate.exitLua(prevBlur)])
-    var off = Gate.shortcutLua("", appliedShortcuts)
-    if (off.lua.length > 0) Quickshell.execDetached(["hyprctl", "eval", off.lua])
+    var off = Gate.releaseCmd(String(Qt.resolvedUrl("binds.py")).replace(/^file:\/\//, ""), appliedShortcuts)
+    if (off) Quickshell.execDetached(off)
   }
 
   Component.onCompleted: {
