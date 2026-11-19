@@ -124,25 +124,60 @@ function parseBlurOptions(text) {
 }
 
 var LOCK_CMD = "omarchy-shell leninzapata.super-workspace-lock lockCurrent"
+var LOCK_DESC = "Super Workspace Lock: lock this workspace"
+var MODMASK = [[64, "SUPER"], [4, "CTRL"], [8, "ALT"], [1, "SHIFT"]]
+
+// `hyprctl binds -j` → { "SUPER + CTRL + L": { own: n, foreign: n } }, solo el mapa
+// principal (submap ""). Los atajos de Omarchy salen como dispatcher "__lua", así que
+// el dueño se reconoce por la descripción: la nuestra es LOCK_DESC. null si no se pudo leer.
+function bindOwners(text) {
+  var list
+  try { list = JSON.parse(text) } catch (e) { return null }
+  if (!Array.isArray(list)) return null
+  var map = {}
+  for (var i = 0; i < list.length; i++) {
+    var b = list[i]
+    if (!b || (b.submap || "") !== "" || b.mouse) continue
+    var mods = []
+    for (var j = 0; j < MODMASK.length; j++)
+      if ((Number(b.modmask) || 0) & MODMASK[j][0]) mods.push(MODMASK[j][1])
+    var c = normChord(mods.concat([String(b.key || "")]).join(" + "))
+    if (!c) continue
+    var e = map[c] || (map[c] = { own: 0, foreign: 0 })
+    if (b.description === LOCK_DESC) e.own++
+    else e.foreign++
+  }
+  return map
+}
 
 // Registra el atajo de bloqueo (y suelta los anteriores). Nunca toca bindings.lua:
 // vive en Hyprland hasta la próxima recarga, tras la que Service.qml lo repone.
-// Devuelve { lua, applied } con los atajos que quedan puestos.
-function shortcutLua(chord, previous) {
+// `owners` = bindOwners(hyprctl binds -j), leído justo antes. Solo se toca un atajo
+// que es NUESTRO: si la tecla ya la usa otra cosa, no se pisa y vuelve en `conflict`;
+// un anterior se suelta solo si en él no hay nada ajeno. Sin `owners` (no se pudo
+// leer) no se pone ninguno nuevo. Devuelve { lua, applied, conflict }.
+function shortcutLua(chord, previous, owners) {
   var lines = []
   var prev = previous || []
+  var c = normChord(chord)
   for (var i = 0; i < prev.length; i++) {
     var p = normChord(prev[i])
-    if (p) lines.push("pcall(function() hl.unbind(" + luaStr(p) + ") end)")
+    if (!p || p === c) continue
+    if (owners && owners[p] && owners[p].foreign > 0) continue
+    if (owners && !owners[p]) continue                 // ya no está (recarga): nada que soltar
+    lines.push("pcall(function() hl.unbind(" + luaStr(p) + ") end)")
   }
-  var c = normChord(chord)
-  var applied = []
-  if (c) {
-    lines.push("pcall(function() hl.unbind(" + luaStr(c) + ") end)")
-    lines.push("hl.bind(" + luaStr(c) + ", hl.dsp.exec_cmd(" + luaStr(LOCK_CMD) + "), { description = \"Super Workspace Lock: lock this workspace\" })")
-    applied.push(c)
+  var applied = [], conflict = ""
+  if (c && owners) {
+    var o = owners[c] || { own: 0, foreign: 0 }
+    if (o.foreign > 0) conflict = c
+    else {
+      if (o.own > 0) lines.push("pcall(function() hl.unbind(" + luaStr(c) + ") end)")
+      lines.push("hl.bind(" + luaStr(c) + ", hl.dsp.exec_cmd(" + luaStr(LOCK_CMD) + "), { description = " + luaStr(LOCK_DESC) + " })")
+      applied.push(c)
+    }
   }
-  return { lua: lines.join("; "), applied: applied }
+  return { lua: lines.join("; "), applied: applied, conflict: conflict }
 }
 
 // Devuelve a Lenin su Hyprland: `reload` repone blur, atajos y reglas, pero NO

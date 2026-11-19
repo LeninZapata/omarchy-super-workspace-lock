@@ -9,7 +9,11 @@ hay nada que ver. La opacidad original se guarda y se devuelve tal cual.
   vis.py show N [N…]   devuelve su opacidad a las ventanas que ahora estén en esos workspaces
   vis.py sync [N…]     al arrancar: oculta esos (los bloqueados) y devuelve el resto
   vis.py restore-all   devuelve la opacidad a todas las ventanas guardadas
-  vis.py watch         vigía: si el plugin deja de responder con ventanas ocultas, restore-all
+  vis.py watch         vigía: si el plugin deja de responder con ventanas ocultas, restore-all;
+                       con el plugin vivo, reintenta las que siguen ocultas fuera de un bloqueado
+
+Una ventana solo sale del estado cuando Hyprland ACEPTÓ su opacidad (se comprueba con
+getprop); si la rechaza, se queda guardada y se reintenta (show/sync/restore-all/watch).
 
 Estado: $SWL_HIDDEN o ~/.local/state/omarchy/super-workspace-lock/hidden.json (700/600):
 { "0xADDR": { "ws": 3, "opacity": "1", "opacity_inactive": "0.96", "opacity_fullscreen": "1" } }
@@ -102,6 +106,54 @@ def plan_show(data, wins, ids):
     return data, restore
 
 
+def plan_keep(data, failed, wins):
+    """Vuelve a guardar las que Hyprland no restauró (failed: [(address, props)]). Pura."""
+    alive = {w["address"]: w["ws"] for w in wins}
+    data = dict(data)
+    for addr, props in failed:
+        if addr in alive:
+            data[addr] = dict({"ws": alive[addr]}, **props)
+    return data
+
+
+def same(a, b):
+    try:
+        return abs(float(a) - float(b)) < 0.005
+    except (TypeError, ValueError):
+        return False
+
+
+def current_props(addr):
+    """Opacidades que Hyprland tiene AHORA en esa ventana; None si ya no existe."""
+    out = {}
+    for p in PROPS:
+        text = hyprctl("getprop", "address:" + addr, p).strip()
+        if text == "window not found":
+            return None
+        out[p] = text
+    return out
+
+
+def apply_restore(restore, tries=3, read=None, write=None, pause=0.1):
+    """Restaura y COMPRUEBA. Devuelve las que siguen sin la opacidad pedida tras `tries`
+    intentos; las ventanas que desaparecen por el camino se olvidan."""
+    read, write = read or current_props, write or set_props
+    pending = list(restore)
+    for n in range(tries):
+        if not pending:
+            break
+        if n:
+            time.sleep(pause)
+        write(pending)
+        failed = []
+        for addr, props in pending:
+            now = read(addr)
+            if now is not None and not all(same(now.get(p), v) for p, v in props.items()):
+                failed.append((addr, props))
+        pending = failed
+    return pending
+
+
 OWN_TITLE = "Super Workspace Lock"   # la tapa y los ajustes: ventanas del plugin, no se ocultan
 
 
@@ -135,29 +187,40 @@ def cmd_hide(ids):
 
 
 def cmd_show(ids):
-    data, restore = plan_show(load(), window_list(), ids)
-    set_props(restore)
-    save(data)
+    wins = window_list()
+    data, restore = plan_show(load(), wins, ids)
+    save(plan_keep(data, apply_restore(restore), wins))
 
 
 def cmd_sync(ids):
     wins = window_list()
     data, restore = plan_show(load(), wins, set(w["ws"] for w in wins) - set(ids))
-    set_props(restore)
-    save(data)
+    save(plan_keep(data, apply_restore(restore), wins))
     if ids:
         cmd_hide(ids)
 
 
 def cmd_restore_all():
-    data, restore = plan_show(load(), window_list(), set(w["ws"] for w in window_list()))
-    set_props(restore)
-    save({})
+    wins = window_list()
+    data, restore = plan_show(load(), wins, set(w["ws"] for w in wins))
+    save(plan_keep(data, apply_restore(restore), wins))
 
 
-def plugin_alive():
+def plugin_locked():
+    """Workspaces bloqueados según el plugin; None si no responde."""
     r = subprocess.run(["omarchy-shell", PLUGIN, "state"], capture_output=True, text=True, timeout=10)
-    return r.returncode == 0 and r.stdout.strip().startswith("{")
+    if r.returncode != 0 or not r.stdout.strip().startswith("{"):
+        return None
+    try:
+        return {int(x) for x in json.loads(r.stdout).get("locked") or []}
+    except (ValueError, TypeError):
+        return None
+
+
+def strays(data, wins, locked):
+    """Workspaces con ventanas guardadas (ocultas) que NO están bloqueados. Pura."""
+    alive = {w["address"]: w["ws"] for w in wins}
+    return {alive[a] for a in data if a in alive and alive[a] not in locked}
 
 
 def cmd_watch():
@@ -169,16 +232,33 @@ def cmd_watch():
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         return
-    misses = 0
+    misses, seen = 0, set()
     while load():
         try:
-            misses = 0 if plugin_alive() else misses + 1
+            locked = plugin_locked()
         except (OSError, subprocess.SubprocessError):
+            locked = None
+        if locked is None:
             misses += 1
-        if misses >= 3:                       # ~15 s sin plugin con ventanas ocultas
-            with locked_state():
-                cmd_restore_all()
-            return
+            if misses >= 3:                   # ~15 s sin plugin con ventanas ocultas
+                with locked_state():
+                    cmd_restore_all()
+                return
+        else:
+            misses = 0
+            # Ocultas fuera de un workspace bloqueado (una restauración que Hyprland
+            # rechazó): se reintenta, pero solo si sigue así en dos vueltas seguidas, para
+            # no destapar nada en el instante en que el plugin oculta antes de marcar.
+            now = strays(load(), window_list(), locked)
+            retry, seen = now & seen, now
+            if retry:
+                with locked_state():
+                    try:
+                        again = plugin_locked()       # justo antes: ¿se bloqueó entretanto?
+                    except (OSError, subprocess.SubprocessError):
+                        again = None
+                    if again is not None and retry - again:
+                        cmd_show(retry - again)
         time.sleep(5)
 
 

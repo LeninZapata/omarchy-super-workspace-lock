@@ -102,13 +102,24 @@ Item {
 
   // ------------------------------------------------------------ atajo global
   // lockShortcut se registra en caliente (hyprctl eval): al arrancar, al cambiar el
-  // ajuste y tras cada recarga de Hyprland. El anterior se suelta siempre.
+  // ajuste y tras cada recarga de Hyprland. Antes se leen los atajos de Hyprland: una
+  // tecla que ya usa otra cosa no se pisa (queda en shortcutConflict y se avisa en los
+  // ajustes), y de los anteriores solo se suelta lo que es nuestro.
   property var appliedShortcuts: []
+  property string shortcutConflict: ""
 
-  function applyShortcut() {
-    var s = Gate.shortcutLua(settings.lockShortcut, appliedShortcuts)
-    appliedShortcuts = s.applied
-    if (s.lua.length > 0) Quickshell.execDetached(["hyprctl", "eval", s.lua])
+  function applyShortcut() { bindsProc.exec(["hyprctl", "binds", "-j"]) }
+
+  Process {
+    id: bindsProc
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var s = Gate.shortcutLua(root.settings.lockShortcut, root.appliedShortcuts, Gate.bindOwners(text))
+        root.appliedShortcuts = s.applied
+        root.shortcutConflict = s.conflict
+        if (s.lua.length > 0) Quickshell.execDetached(["hyprctl", "eval", s.lua])
+      }
+    }
   }
 
   onSettingsChanged: if (settingsLoaded && Gate.normChord(settings.lockShortcut) !== (appliedShortcuts[0] || null)) applyShortcut()
@@ -478,6 +489,7 @@ Item {
         allowedMissing: root.missingAllowed,
         authError: root.authError,
         shortcut: root.appliedShortcuts,
+        shortcutConflict: root.shortcutConflict,
         shellPid: root.shellPid,
         sessionWatch: root.sessionWatch,
         settingsOpen: root.settingsOpen,

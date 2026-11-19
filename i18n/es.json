@@ -58,6 +58,7 @@
   "card.ownPassword": "Clave propia",
   "card.shortcut": "Atajo de bloqueo",
   "card.shortcut.desc": "Bloquea el workspace en el que estás (uno público sigue público al desbloquearlo).",
+  "card.shortcut.inUse": "%1 ya lo usa otro atajo, así que no se puso. Elige otro.",
   "card.allowed": "Atajos en un workspace bloqueado",
   "card.allowed.desc": "Solo estos funcionan con el blur puesto. Los rojos no están en los atajos de Omarchy y no hacen nada.",
   "card.generalLock.desc": "Para todo workspace que esté en «Por defecto».",

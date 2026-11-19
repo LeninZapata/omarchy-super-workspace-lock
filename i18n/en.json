@@ -58,6 +58,7 @@
   "card.ownPassword": "Own password",
   "card.shortcut": "Lock shortcut",
   "card.shortcut.desc": "Locks the workspace you are on (a public one stays public after you unlock it).",
+  "card.shortcut.inUse": "%1 is already used by another shortcut, so it was not set. Pick a different one.",
   "card.allowed": "Shortcuts on a locked workspace",
   "card.allowed.desc": "Only these work while the blur is up. Red ones are not in Omarchy's keybindings and do nothing.",
   "card.generalLock.desc": "For every workspace left on Default.",

@@ -658,7 +658,9 @@ FloatingWindow {
               width: parent.width
               title: win.t("card.shortcut")
               hasCursor: win.currentRow === "shortcut"
-              description: win.t("card.shortcut.desc")
+              description: win.service && win.service.shortcutConflict
+                ? win.t("card.shortcut.inUse").arg(win.service.shortcutConflict)
+                : win.t("card.shortcut.desc")
               fontFamily: win.fontFamily
               Rectangle {
                 anchors.verticalCenter: parent.verticalCenter

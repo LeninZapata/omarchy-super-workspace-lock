@@ -37,14 +37,46 @@ assert.deepEqual(JSON.parse(JSON.stringify(prev)), { enabled: false, size: 8, pa
 assert.ok(G.exitLua(prev).includes('enabled = false, size = 8, passes = 1'));
 assert.ok(G.exitLua(prev).startsWith('hl.dispatch(hl.dsp.submap("reset"))'));
 
-// atajo de bloqueo: suelta los anteriores y pone el nuevo, normalizado
-const sc = G.shortcutLua('super ctrl shift + l', ['SUPER + ALT + L']);
+// atajo de bloqueo: lee los atajos de Hyprland y solo toca lo suyo
+const bind = (modmask, key, description, submap = '') => ({ modmask, key, description, submap, mouse: false, dispatcher: '__lua', arg: '1' });
+const binds = JSON.stringify([
+  bind(65, 'L', 'Super Workspace Lock: lock this workspace'),     // SUPER+SHIFT+L: nuestro (anterior)
+  bind(68, 'L', 'Lock system'),                                    // SUPER+CTRL+L: de Omarchy
+  bind(64, 'L', 'something', 'swl-locked'),                        // en otro submap: no cuenta
+]);
+const owners = G.bindOwners(binds);
+assert.deepEqual(JSON.parse(JSON.stringify(owners)), { 'SUPER + SHIFT + L': { own: 1, foreign: 0 }, 'SUPER + CTRL + L': { own: 0, foreign: 1 } });
+assert.equal(G.bindOwners('not json'), null);
+
+// tecla libre: suelta el anterior (nuestro) y pone el nuevo
+const sc = G.shortcutLua('super ctrl shift + l', ['SUPER + SHIFT + L'], owners);
 assert.deepEqual([...sc.applied], ['SUPER + CTRL + SHIFT + L']);
-assert.ok(sc.lua.startsWith('pcall(function() hl.unbind([[SUPER + ALT + L]]) end)'));
+assert.equal(sc.conflict, '');
+assert.ok(sc.lua.startsWith('pcall(function() hl.unbind([[SUPER + SHIFT + L]]) end)'));
 assert.ok(sc.lua.includes('hl.bind([[SUPER + CTRL + SHIFT + L]], hl.dsp.exec_cmd([[omarchy-shell leninzapata.super-workspace-lock lockCurrent]])'));
-// vacío = sin atajo, solo suelta
+assert.ok(!sc.lua.includes('hl.unbind([[SUPER + CTRL + SHIFT + L]])'), 'tecla libre: no hay nada que soltar');
+
+// tecla ocupada por otro: NO se suelta ni se pisa, vuelve como conflicto
+const taken = G.shortcutLua('SUPER + CTRL + L', [], owners);
+assert.deepEqual([...taken.applied], []);
+assert.equal(taken.conflict, 'SUPER + CTRL + L');
+assert.ok(!taken.lua.includes('SUPER + CTRL + L'), 'nada sobre un atajo ajeno');
+
+// un anterior que ahora comparte tecla con otro no se suelta
+const shared = G.bindOwners(JSON.stringify([bind(65, 'L', 'Super Workspace Lock: lock this workspace'), bind(65, 'L', 'mine')]));
+assert.ok(!G.shortcutLua('SUPER + ALT + K', ['SUPER + SHIFT + L'], shared).lua.includes('unbind([[SUPER + SHIFT + L]])'));
+
+// re-aplicar sobre el nuestro: se suelta y se pone de nuevo (sin duplicar)
+const again = G.shortcutLua('SUPER + SHIFT + L', [], owners);
+assert.ok(again.lua.startsWith('pcall(function() hl.unbind([[SUPER + SHIFT + L]]) end)') && again.applied.length === 1);
+
+// sin poder leer los atajos: no se pone ninguno nuevo
+assert.deepEqual([...G.shortcutLua('SUPER + ALT + K', [], null).applied], []);
+
+// vacío = sin atajo, solo suelta (al cerrar el shell, sin lectura previa)
 const none = G.shortcutLua('', ['SUPER + CTRL + SHIFT + L']);
 assert.deepEqual([...none.applied], []);
+assert.ok(none.lua.includes('hl.unbind([[SUPER + CTRL + SHIFT + L]])'));
 assert.ok(!none.lua.includes('hl.bind('));
 
 // vigía: solo con un pid válido, y vigila el submap propio

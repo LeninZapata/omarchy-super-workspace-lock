@@ -31,4 +31,29 @@ assert vis.number("0.96") == "0.96" and vis.number("garbage") == "1"
 # sync: lo guardado en un workspace que ya no está bloqueado se devuelve
 left, restore = vis.plan_show(data, [{"address": "0xa", "ws": 3}], {3, 4} - {4})
 assert restore and left == {}
+# restauración comprobada: lo que Hyprland rechaza se queda guardado para reintentar
+saved = {"opacity": "1", "opacity_inactive": "0.96", "opacity_fullscreen": "1"}
+state = {"0xa": {"opacity": "0", "opacity_inactive": "0", "opacity_fullscreen": "0"},
+         "0xb": {"opacity": "0", "opacity_inactive": "0", "opacity_fullscreen": "0"}}
+def write_ok_only_b(values):
+    for addr, props in values:
+        if addr == "0xb": state[addr].update(props)       # 0xa: Hyprland lo rechaza
+failed = vis.apply_restore([("0xa", saved), ("0xb", saved)], read=lambda a: state.get(a), write=write_ok_only_b, pause=0)
+assert failed == [("0xa", saved)], failed
+kept = vis.plan_keep({}, failed, [{"address": "0xa", "ws": 3}, {"address": "0xb", "ws": 3}])
+assert kept == {"0xa": dict({"ws": 3}, **saved)}
+# una ventana que se cerró mientras tanto no se queda en el estado
+assert vis.apply_restore([("0xz", saved)], read=lambda a: None, write=lambda v: None, pause=0) == []
+assert vis.plan_keep({}, [("0xz", saved)], []) == {}
+# reintento al segundo intento
+calls = []
+def flaky(values):
+    calls.append(1)
+    if len(calls) >= 2:
+        for addr, props in values: state[addr].update(props)
+state["0xa"] = {"opacity": "0", "opacity_inactive": "0", "opacity_fullscreen": "0"}
+assert vis.apply_restore([("0xa", saved)], read=lambda a: state.get(a), write=flaky, pause=0) == [] and len(calls) == 2
+assert vis.same("1", "1.000000") and not vis.same("0", "1") and not vis.same("garbage", "1")
+# vigía: ocultas fuera de un bloqueado = a reintentar
+assert vis.strays({"0xa": {}, "0xb": {}}, [{"address": "0xa", "ws": 3}, {"address": "0xb", "ws": 4}], {3}) == {4}
 print("vis ok")

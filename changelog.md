@@ -2,6 +2,11 @@
 
 > What changed, by version (newest first; the last 10 are kept).
 
+## 0.3.5 - 2026-11-19 13:40
+---
+- [fix] The lock shortcut never takes over a key that something else already uses: before setting it, the plugin reads Hyprland's binds and only sets or releases its own (recognized by its description). A taken key is left alone and the settings window says so under "Lock shortcut". Reported in the marketplace review
+- [fix] A window's saved opacity is only forgotten once Hyprland has actually restored it (checked with getprop, up to 3 tries). If Hyprland rejects it, the value stays in hidden.json and the watcher retries while the plugin runs, so a window can no longer stay invisible after unlocking. Reported in the marketplace review
+
 ## 0.3.4 - 2026-11-18 13:45
 ---
 - [fix] A password unlocks only the workspace it was typed for: verification is asynchronous (scrypt or PAM), and switching workspaces while it ran opened whichever workspace was active when the result arrived, even one with a different password. Reported in the marketplace review
