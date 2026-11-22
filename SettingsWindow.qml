@@ -508,6 +508,8 @@ FloatingWindow {
                 }
               }
 
+              PanelSectionHeader { text: win.t("section.lock").toUpperCase(); foreground: win.fg; fontFamily: win.fontFamily; topPadding: Style.space(6) }
+
               SettingCard {
                 width: parent.width
                 title: win.t("card.lockMode")
@@ -525,25 +527,32 @@ FloatingWindow {
                 }
               }
 
-              SettingCard {
+              SettingGroup {
                 width: parent.width
                 visible: win.selectedEffective.lockMode === "delay"
-                hasCursor: win.currentRow === "delay"
-                title: win.t("card.delay")
-                description: win.t("card.delay.desc")
-                fontFamily: win.fontFamily
-                Button { text: "−"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveWorkspace("delaySeconds", win.stepDelay(win.selectedEffective.delaySeconds, -1)) }
-                Text {
-                  anchors.verticalCenter: parent.verticalCenter
-                  width: Style.space(70)
-                  horizontalAlignment: Text.AlignHCenter
-                  textFormat: Text.PlainText
-                  text: win.formatDelay(win.selectedEffective.delaySeconds)
-                  color: win.fg; font.family: win.fontFamily; font.pixelSize: Style.font.body; font.bold: true
+                lineColor: win.lineColor
+
+                SettingCard {
+                  width: parent.width
+                  hasCursor: win.currentRow === "delay"
+                  title: win.t("card.delay")
+                  description: win.t("card.delay.desc")
+                  fontFamily: win.fontFamily
+                  Button { text: "−"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveWorkspace("delaySeconds", win.stepDelay(win.selectedEffective.delaySeconds, -1)) }
+                  Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Style.space(70)
+                    horizontalAlignment: Text.AlignHCenter
+                    textFormat: Text.PlainText
+                    text: win.formatDelay(win.selectedEffective.delaySeconds)
+                    color: win.fg; font.family: win.fontFamily; font.pixelSize: Style.font.body; font.bold: true
+                  }
+                  Button { text: "+"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveWorkspace("delaySeconds", win.stepDelay(win.selectedEffective.delaySeconds, 1)) }
+                  Button { visible: win.selectedEntry.delaySeconds !== undefined; text: win.t("settings.inherit"); bordered: true; fontFamily: win.fontFamily; onClicked: win.saveWorkspace("delaySeconds", null) }
                 }
-                Button { text: "+"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveWorkspace("delaySeconds", win.stepDelay(win.selectedEffective.delaySeconds, 1)) }
-                Button { visible: win.selectedEntry.delaySeconds !== undefined; text: win.t("settings.inherit"); bordered: true; fontFamily: win.fontFamily; onClicked: win.saveWorkspace("delaySeconds", null) }
               }
+
+              PanelSectionHeader { text: win.t("section.idle").toUpperCase(); foreground: win.fg; fontFamily: win.fontFamily; topPadding: Style.space(6) }
 
               SettingCard {
                 width: parent.width
@@ -603,6 +612,8 @@ FloatingWindow {
                   }
                 }
               }
+
+              PanelSectionHeader { text: win.t("section.password").toUpperCase(); foreground: win.fg; fontFamily: win.fontFamily; topPadding: Style.space(6) }
 
               SettingCard {
                 width: parent.width
@@ -696,23 +707,28 @@ FloatingWindow {
               }
             }
 
-            SettingCard {
+            SettingGroup {
               width: parent.width
               visible: win.defs.lockMode === "delay"
-              hasCursor: win.currentRow === "delay"
-              title: win.t("card.delay")
-              description: win.t("card.delay.desc")
-              fontFamily: win.fontFamily
-              Button { objectName: "delayMinus"; text: "−"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveDefault("delaySeconds", win.stepDelay(win.defs.delaySeconds, -1)) }
-              Text {
-                anchors.verticalCenter: parent.verticalCenter
-                width: Style.space(70)
-                horizontalAlignment: Text.AlignHCenter
-                textFormat: Text.PlainText
-                text: win.formatDelay(win.defs.delaySeconds)
-                color: win.fg; font.family: win.fontFamily; font.pixelSize: Style.font.body; font.bold: true
+              lineColor: win.lineColor
+
+              SettingCard {
+                width: parent.width
+                hasCursor: win.currentRow === "delay"
+                title: win.t("card.delay")
+                description: win.t("card.delay.desc")
+                fontFamily: win.fontFamily
+                Button { objectName: "delayMinus"; text: "−"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveDefault("delaySeconds", win.stepDelay(win.defs.delaySeconds, -1)) }
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(70)
+                  horizontalAlignment: Text.AlignHCenter
+                  textFormat: Text.PlainText
+                  text: win.formatDelay(win.defs.delaySeconds)
+                  color: win.fg; font.family: win.fontFamily; font.pixelSize: Style.font.body; font.bold: true
+                }
+                Button { objectName: "delayPlus"; text: "+"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveDefault("delaySeconds", win.stepDelay(win.defs.delaySeconds, 1)) }
               }
-              Button { objectName: "delayPlus"; text: "+"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveDefault("delaySeconds", win.stepDelay(win.defs.delaySeconds, 1)) }
             }
 
             PanelSectionHeader { text: win.t("section.idle").toUpperCase(); foreground: win.fg; fontFamily: win.fontFamily; topPadding: Style.space(10) }

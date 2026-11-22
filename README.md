@@ -7,7 +7,7 @@ leave it, it locks: the next time you come back it is covered with a heavy blur 
 your password before it shows anything. Your system password always works, and each
 workspace can also have a password of its own.
 
-**Status: v0.4.0.** Lock right away or after some time away, the system password or a
+**Status: v0.4.1.** Lock right away or after some time away, the system password or a
 per-workspace one, a lock icon in the bar, a settings window you can drive with the keyboard,
 a shortcut to lock the workspace you are on, and a lock that comes back when the whole session
 is locked.

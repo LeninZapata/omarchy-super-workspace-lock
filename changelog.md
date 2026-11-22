@@ -2,6 +2,11 @@
 
 > What changed, by version (newest first; the last 10 are kept).
 
+## 0.4.1 - 2026-11-22 12:00
+---
+- [update] The workspace tab of the settings is split into the same sections as the General tab (Lock, Inactivity, Password), so "Lock when idle" no longer reads as part of "When to lock"
+- [update] "Time away" sits in an indented frame under "When to lock", like the idle settings under "Lock when idle"
+
 ## 0.4.0 - 2026-11-22 11:48
 ---
 - [feature] Lock when idle: an open private workspace also locks while you are still in it once the keyboard and mouse sit untouched for a while. Off by default; 15 minutes (1 min – 2 h) when turned on. It uses Wayland's idle notification on its own, so it works even with Omarchy's idle lock off
@@ -52,13 +57,4 @@
 - [update] Full keyboard control in settings: arrows move through the list, Enter goes into the options, left/right change a value, Esc goes back
 - [update] Lock screen card: locked monitor, which password it asks for, key hints, and a shake on a wrong password
 - [new] MIT license
-
-## 0.2.0 - 2026-11-17 15:01
----
-- [feature] Settings window (from the panel's Settings button): defaults and per-workspace overrides with "Default" to inherit
-- [feature] Lock after a while away: a private workspace can stay open for a chosen time after you leave it (5 s to 1 h)
-- [feature] Own password per workspace (scrypt, sent to the helper only through stdin); the system password always opens it too
-- [feature] Lock-now button per private workspace in the bar panel
-- [feature] Edit the shortcuts that work on a locked workspace, and the lock shortcut, by pressing them (no text fields)
-- [new] hash.py helper for own passwords, with its tests
 
