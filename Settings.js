@@ -16,9 +16,21 @@ var PASSWORD_MODES = ["system", "own"]
 var LOCK_MODES = ["immediate", "delay"]
 var DELAY_MIN = 5
 var DELAY_MAX = 3600
+// Inactividad (0.4.0): sin teclado ni ratón durante idleSeconds, el privado abierto se
+// bloquea aunque estés dentro. idleAudio: "lock" = bloquea igual con audio sonando;
+// "wait" = espera mientras suene algo. Son cadenas (no bool) porque en un workspace
+// false se confundiría con «heredar» (withWorkspaceField borra el campo con false).
+var IDLE_LOCK = ["off", "on"]
+var IDLE_AUDIO = ["lock", "wait"]
+var IDLE_MIN = 60
+var IDLE_MAX = 7200
 
 function validDelay(v) {
   return typeof v === "number" && Math.floor(v) === v && v >= DELAY_MIN && v <= DELAY_MAX
+}
+
+function validIdle(v) {
+  return typeof v === "number" && Math.floor(v) === v && v >= IDLE_MIN && v <= IDLE_MAX
 }
 
 function defaults() {
@@ -26,7 +38,8 @@ function defaults() {
     schemaVersion: SCHEMA_VERSION,
     lockShortcut: "SUPER + CTRL + SHIFT + L",
     lockedAllowedShortcuts: DEFAULT_ALLOWED.slice(),
-    defaults: { passwordMode: "system", lockMode: "immediate", delaySeconds: 60 },
+    defaults: { passwordMode: "system", lockMode: "immediate", delaySeconds: 60,
+                idleLock: "off", idleSeconds: 900, idleAudio: "lock" },
     workspaces: {}
   }
 }
@@ -42,12 +55,16 @@ function normalize(raw) {
   var out = { schemaVersion: SCHEMA_VERSION, lockShortcut: d.lockShortcut,
               lockedAllowedShortcuts: d.lockedAllowedShortcuts,
               defaults: { passwordMode: d.defaults.passwordMode, lockMode: d.defaults.lockMode,
-                          delaySeconds: d.defaults.delaySeconds }, workspaces: {} }
+                          delaySeconds: d.defaults.delaySeconds, idleLock: d.defaults.idleLock,
+                          idleSeconds: d.defaults.idleSeconds, idleAudio: d.defaults.idleAudio }, workspaces: {} }
 
   var sd = (src.defaults && typeof src.defaults === "object" && !Array.isArray(src.defaults)) ? src.defaults : {}
   if (PASSWORD_MODES.indexOf(sd.passwordMode) !== -1) out.defaults.passwordMode = sd.passwordMode
   if (LOCK_MODES.indexOf(sd.lockMode) !== -1) out.defaults.lockMode = sd.lockMode
   if (validDelay(sd.delaySeconds)) out.defaults.delaySeconds = sd.delaySeconds
+  if (IDLE_LOCK.indexOf(sd.idleLock) !== -1) out.defaults.idleLock = sd.idleLock
+  if (validIdle(sd.idleSeconds)) out.defaults.idleSeconds = sd.idleSeconds
+  if (IDLE_AUDIO.indexOf(sd.idleAudio) !== -1) out.defaults.idleAudio = sd.idleAudio
 
   if (src.lockShortcut === "" || isChord(src.lockShortcut)) out.lockShortcut = src.lockShortcut
 
@@ -72,6 +89,9 @@ function normalize(raw) {
     if (PASSWORD_MODES.indexOf(entry.passwordMode) !== -1) clean.passwordMode = entry.passwordMode
     if (LOCK_MODES.indexOf(entry.lockMode) !== -1) clean.lockMode = entry.lockMode
     if (validDelay(entry.delaySeconds)) clean.delaySeconds = entry.delaySeconds
+    if (IDLE_LOCK.indexOf(entry.idleLock) !== -1) clean.idleLock = entry.idleLock
+    if (validIdle(entry.idleSeconds)) clean.idleSeconds = entry.idleSeconds
+    if (IDLE_AUDIO.indexOf(entry.idleAudio) !== -1) clean.idleAudio = entry.idleAudio
     for (var k in clean) { out.workspaces[String(id)] = clean; break }
   }
   return out
@@ -120,7 +140,10 @@ function effective(settings, id) {
     private: w.private === true,
     passwordMode: w.passwordMode || s.defaults.passwordMode,
     lockMode: w.lockMode || s.defaults.lockMode,
-    delaySeconds: w.delaySeconds || s.defaults.delaySeconds
+    delaySeconds: w.delaySeconds || s.defaults.delaySeconds,
+    idleLock: w.idleLock || s.defaults.idleLock,
+    idleSeconds: w.idleSeconds || s.defaults.idleSeconds,
+    idleAudio: w.idleAudio || s.defaults.idleAudio
   }
 }
 
@@ -131,6 +154,17 @@ function delays(settings) {
   for (var i = 0; i < ids.length; i++) {
     var e = effective(settings, ids[i])
     if (e.lockMode === "delay") out[String(ids[i])] = e.delaySeconds
+  }
+  return out
+}
+
+// { id: { seconds, audio } } de los privados con bloqueo por inactividad (para Core.idleDue).
+function idleTargets(settings) {
+  var out = {}
+  var ids = privateIds(normalize(settings))
+  for (var i = 0; i < ids.length; i++) {
+    var e = effective(settings, ids[i])
+    if (e.idleLock === "on") out[String(ids[i])] = { seconds: e.idleSeconds, audio: e.idleAudio }
   }
   return out
 }

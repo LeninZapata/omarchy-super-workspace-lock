@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Hyprland
 import qs.Commons as Commons
 import Quickshell.Io
+import Quickshell.Wayland
 import "Core.js" as Core
 import "Settings.js" as Settings
 import "Gate.js" as Gate
@@ -97,6 +98,59 @@ Item {
     id: sessionProc
     stdout: StdioCollector {
       onStreamFinished: if (text.trim() === "true") root.setLockState(Core.sessionLocked(root.lockState))
+    }
+  }
+
+  // ------------------------------------------------------------ inactividad (0.4.0)
+  // Sin teclado ni ratón durante el plazo de un privado ABIERTO, se bloquea aunque estés
+  // dentro. IdleMonitor (ext-idle-notify de Wayland) avisa al primer minuto quieto; desde
+  // ahí se cuenta el resto. Ignora los inhibidores (un vídeo no lo frena): el audio se
+  // decide aparte, por workspace, con idleAudio "wait". Independiente del bloqueo por
+  // inactividad de Omarchy: vale también con «Stay awake» puesto.
+  readonly property int idleGraceSec: 60          // = Settings.IDLE_MIN
+  readonly property var idleTargets: Settings.idleTargets(settings)
+  readonly property bool idleWatch: settingsLoaded && Core.hasUnlockedPrivate(lockState)
+                                    && Object.keys(idleTargets).length > 0
+  property double idleSince: 0                     // ms; 0 = hay actividad
+
+  IdleMonitor {
+    id: idleMon
+    enabled: root.idleWatch
+    timeout: root.idleGraceSec
+    respectInhibitors: false
+    onIsIdleChanged: root.idleSince = isIdle ? Date.now() - root.idleGraceSec * 1000 : 0
+  }
+
+  Timer {
+    id: idleTick
+    interval: 10000
+    repeat: true
+    triggeredOnStart: true
+    running: root.idleWatch && root.idleSince > 0
+    onTriggered: root.checkIdle()
+  }
+
+  property var idleWaitIds: []
+  function checkIdle() {
+    if (!(idleSince > 0)) return
+    var due = Core.idleDue(lockState, idleTargets, Date.now() - idleSince)
+    if (due.lock.length > 0) setLockState(Core.lockMany(lockState, due.lock))
+    if (due.wait.length > 0 && !audioProc.running) {
+      idleWaitIds = due.wait
+      audioProc.exec(["pactl", "list", "sinks", "short"])
+    }
+  }
+
+  // ¿Suena algo? Una salida en RUNNING = hay audio en curso. Si pactl falla, no se sabe:
+  // se bloquea (la privacidad manda sobre la comodidad).
+  Process {
+    id: audioProc
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var playing = /\tRUNNING\s*$/m.test(text)
+        if (!playing && root.idleSince > 0) root.setLockState(Core.lockMany(root.lockState, root.idleWaitIds))
+        root.idleWaitIds = []
+      }
     }
   }
 
@@ -495,6 +549,9 @@ Item {
         shortcutConflict: root.shortcutConflict,
         shellPid: root.shellPid,
         sessionWatch: root.sessionWatch,
+        idleWatch: root.idleWatch,
+        idleSince: root.idleSince,
+        idleTargets: root.idleTargets,
         settingsOpen: root.settingsOpen,
         language: Commons.I18n.language,
         name: strings.t("plugin.name")

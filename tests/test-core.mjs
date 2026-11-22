@@ -102,4 +102,16 @@ assert.deepEqual(plain(sp.pending), {});
 // dejar de ser privado quita su pendiente
 assert.deepEqual(plain(C.syncPrivate(C.focusChanged(C.setPrivate(C.start([]), 4, true), 4, 1, 0, { 4: 30 }), []).pending), {});
 
+// inactividad: solo privados abiertos con plazo cumplido; "wait" aparte (depende del audio)
+let ist = C.setPrivate(C.setPrivate(C.setPrivate(C.start([]), 2, true), 3, true), 4, true);
+ist = C.unlockOk(C.unlockOk(C.unlockOk(ist, 2), 3), 4);
+ist = C.lockNow(ist, 4);
+const targets = { 2: { seconds: 60, audio: 'lock' }, 3: { seconds: 300, audio: 'wait' }, 4: { seconds: 60, audio: 'lock' } };
+assert.deepEqual(plain(C.idleDue(ist, targets, 59000)), { lock: [], wait: [] });
+assert.deepEqual(plain(C.idleDue(ist, targets, 60000)), { lock: [2], wait: [] }, '4 ya está bloqueado');
+assert.deepEqual(plain(C.idleDue(ist, targets, 300000)), { lock: [2], wait: [3] });
+assert.deepEqual(plain(C.idleDue(ist, {}, 999999)), { lock: [], wait: [] });
+assert.deepEqual(plain(C.idleDue(ist, targets, 0)), { lock: [], wait: [] });
+assert.deepEqual(plain(C.lockMany(ist, [2, 3]).lockedIds).sort(), [2, 3, 4]);
+
 console.log('core ok');

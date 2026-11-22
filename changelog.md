@@ -2,6 +2,13 @@
 
 > What changed, by version (newest first; the last 10 are kept).
 
+## 0.4.0 - 2026-11-22 11:48
+---
+- [feature] Lock when idle: an open private workspace also locks while you are still in it once the keyboard and mouse sit untouched for a while. Off by default; 15 minutes (1 min – 2 h) when turned on. It uses Wayland's idle notification on its own, so it works even with Omarchy's idle lock off
+- [feature] "While audio plays" option for the idle lock: lock anyway (default) or wait while any audio output is playing (checked with pactl)
+- [new] Inactivity section in the General tab, with the same three settings per workspace (Default inherits); the time and audio settings are grouped and indented under the switch
+- [new] SettingGroup.qml, the indented frame for settings that depend on a switch
+
 ## 0.3.7 - 2026-11-19 17:21
 ---
 - [fix] The lock shortcut's ownership check now looks at every Hyprland submap, not just the main key map: hl.unbind removes a key from all submaps, so a key that something else uses in any submap is treated as taken (never set, never released). Only the plugin's own lock-layer submap is ignored, since the plugin rebuilds it. Reported in the marketplace review
@@ -55,14 +62,3 @@
 - [feature] Edit the shortcuts that work on a locked workspace, and the lock shortcut, by pressing them (no text fields)
 - [new] hash.py helper for own passwords, with its tests
 
-## 0.1.0 - 2026-11-17 14:42
----
-- [feature] Mark a workspace as private: when you leave it, it locks and is covered with a heavy blur and a password box (system password, PAM)
-- [feature] While a workspace is locked only the allowed shortcuts work (Super+1…0, Super+Tab, Super+Space, Super+Ctrl+L by default; editable in settings.json)
-- [feature] Lock icon in the bar tray drawer with a panel listing workspaces and a private switch for each
-- [feature] Super+Ctrl+Shift+L locks the current workspace; on a public one it is a one-off lock
-- [feature] Private workspaces lock again when the whole session is locked (works with omarchy.lock and LockSigil)
-- [feature] Wrong password and too-many-attempts (faillock) messages, in English and Spanish
-- [new] Settings in ~/.config/omarchy/super-workspace-lock/settings.json (folder 700, file 600); private workspaces start locked after a restart
-- [new] Watchdog that gives Hyprland back (reload + submap reset) if the shell dies while a workspace is locked
-- [new] Logic tests (node) and helpers to test without hands: IPC state, layer screenshot, workspace switch

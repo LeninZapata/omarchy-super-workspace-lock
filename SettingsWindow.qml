@@ -43,10 +43,13 @@ FloatingWindow {
   property string focusArea: "list"
   property int optCursor: 0
   readonly property var rows: tab === "workspaces"
-    ? ["private", "lockMode", "delay", "password", "own"].filter(function(r) {
+    ? ["private", "lockMode", "delay", "idle", "idleTime", "idleAudio", "password", "own"].filter(function(r) {
         return (r !== "delay" || selectedEffective.lockMode === "delay") && (r !== "own" || selectedEffective.passwordMode === "own")
+          && ((r !== "idleTime" && r !== "idleAudio") || selectedEffective.idleLock === "on")
       })
-    : ["lockMode", "delay", "password", "shortcut", "allowed"].filter(function(r) { return r !== "delay" || defs.lockMode === "delay" })
+    : ["lockMode", "delay", "idle", "idleTime", "idleAudio", "password", "shortcut", "allowed"].filter(function(r) {
+        return (r !== "delay" || defs.lockMode === "delay") && ((r !== "idleTime" && r !== "idleAudio") || defs.idleLock === "on")
+      })
   readonly property string currentRow: focusArea === "options" ? (rows[Math.min(optCursor, rows.length - 1)] || "") : ""
 
   function cycle(list, current, dir) {
@@ -63,13 +66,23 @@ FloatingWindow {
         var m = cycle(["inherit", "immediate", "delay"], selectedEntry.lockMode || "inherit", dir)
         saveWorkspace("lockMode", m === "inherit" ? null : m)
       } else if (r === "delay") saveWorkspace("delaySeconds", stepDelay(selectedEffective.delaySeconds, dir))
-      else if (r === "password") {
+      else if (r === "idle") {
+        var il = cycle(["inherit", "off", "on"], selectedEntry.idleLock || "inherit", dir)
+        saveWorkspace("idleLock", il === "inherit" ? null : il)
+      } else if (r === "idleTime") saveWorkspace("idleSeconds", stepIdle(selectedEffective.idleSeconds, dir))
+      else if (r === "idleAudio") {
+        var ia = cycle(["inherit", "lock", "wait"], selectedEntry.idleAudio || "inherit", dir)
+        saveWorkspace("idleAudio", ia === "inherit" ? null : ia)
+      } else if (r === "password") {
         var p = cycle(["inherit", "system", "own"], selectedEntry.passwordMode || "inherit", dir)
         saveWorkspace("passwordMode", p === "inherit" ? null : p)
       }
     } else {
       if (r === "lockMode") saveDefault("lockMode", cycle(["immediate", "delay"], defs.lockMode, dir))
       else if (r === "delay") saveDefault("delaySeconds", stepDelay(defs.delaySeconds, dir))
+      else if (r === "idle") saveDefault("idleLock", cycle(["off", "on"], defs.idleLock, dir))
+      else if (r === "idleTime") saveDefault("idleSeconds", stepIdle(defs.idleSeconds, dir))
+      else if (r === "idleAudio") saveDefault("idleAudio", cycle(["lock", "wait"], defs.idleAudio, dir))
       else if (r === "password") saveDefault("passwordMode", cycle(["system", "own"], defs.passwordMode, dir))
     }
   }
@@ -118,6 +131,14 @@ FloatingWindow {
     var i = delaySteps.indexOf(current)
     if (i === -1) { i = 0; while (i < delaySteps.length - 1 && delaySteps[i] < current) i++ }
     return delaySteps[Math.max(0, Math.min(delaySteps.length - 1, i + dir))]
+  }
+
+  // Pasos del tiempo sin actividad (segundos), dentro de 60…7200.
+  readonly property var idleSteps: [60, 120, 300, 600, 900, 1200, 1800, 2700, 3600, 5400, 7200]
+  function stepIdle(current, dir) {
+    var i = idleSteps.indexOf(current)
+    if (i === -1) { i = 0; while (i < idleSteps.length - 1 && idleSteps[i] < current) i++ }
+    return idleSteps[Math.max(0, Math.min(idleSteps.length - 1, i + dir))]
   }
 
   function modeLabel(mode) { return mode === "delay" ? t("settings.delay") : t("settings.immediate") }
@@ -526,6 +547,65 @@ FloatingWindow {
 
               SettingCard {
                 width: parent.width
+                title: win.t("card.idle")
+                description: win.t("card.idle.desc")
+                hasCursor: win.currentRow === "idle"
+                fontFamily: win.fontFamily
+                ButtonGroup {
+                  objectName: "wsIdleLock"
+                  focusable: false
+                  options: [{ value: "inherit", label: win.t("settings.inherit") },
+                            { value: "off", label: win.t("settings.off") }, { value: "on", label: win.t("settings.on") }]
+                  value: win.selectedEntry.idleLock || "inherit"
+                  foreground: win.fg; background: win.bg; accent: win.accent; fontFamily: win.fontFamily; fontSize: Style.font.caption
+                  onChanged: function(v) { win.saveWorkspace("idleLock", v === "inherit" ? null : v) }
+                }
+              }
+
+              SettingGroup {
+                width: parent.width
+                visible: win.selectedEffective.idleLock === "on"
+                lineColor: win.lineColor
+
+                SettingCard {
+                  width: parent.width
+                  hasCursor: win.currentRow === "idleTime"
+                  title: win.t("card.idleTime")
+                  description: win.t("card.idleTime.desc")
+                  fontFamily: win.fontFamily
+                  Button { text: "−"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveWorkspace("idleSeconds", win.stepIdle(win.selectedEffective.idleSeconds, -1)) }
+                  Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Style.space(70)
+                    horizontalAlignment: Text.AlignHCenter
+                    textFormat: Text.PlainText
+                    text: win.formatDelay(win.selectedEffective.idleSeconds)
+                    color: win.fg; font.family: win.fontFamily; font.pixelSize: Style.font.body; font.bold: true
+                  }
+                  Button { text: "+"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveWorkspace("idleSeconds", win.stepIdle(win.selectedEffective.idleSeconds, 1)) }
+                  Button { visible: win.selectedEntry.idleSeconds !== undefined; text: win.t("settings.inherit"); bordered: true; fontFamily: win.fontFamily; onClicked: win.saveWorkspace("idleSeconds", null) }
+                }
+
+                SettingCard {
+                  width: parent.width
+                  hasCursor: win.currentRow === "idleAudio"
+                  title: win.t("card.idleAudio")
+                  description: win.t("card.idleAudio.desc")
+                  fontFamily: win.fontFamily
+                  ButtonGroup {
+                    objectName: "wsIdleAudio"
+                    focusable: false
+                    options: [{ value: "inherit", label: win.t("settings.inherit") },
+                              { value: "lock", label: win.t("settings.idleAudioLock") }, { value: "wait", label: win.t("settings.idleAudioWait") }]
+                    value: win.selectedEntry.idleAudio || "inherit"
+                    foreground: win.fg; background: win.bg; accent: win.accent; fontFamily: win.fontFamily; fontSize: Style.font.caption
+                    onChanged: function(v) { win.saveWorkspace("idleAudio", v === "inherit" ? null : v) }
+                  }
+                }
+              }
+
+              SettingCard {
+                width: parent.width
                 title: win.t("card.password")
                 hasCursor: win.currentRow === "password"
                 description: win.t("card.password.desc")
@@ -633,6 +713,64 @@ FloatingWindow {
                 color: win.fg; font.family: win.fontFamily; font.pixelSize: Style.font.body; font.bold: true
               }
               Button { objectName: "delayPlus"; text: "+"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveDefault("delaySeconds", win.stepDelay(win.defs.delaySeconds, 1)) }
+            }
+
+            PanelSectionHeader { text: win.t("section.idle").toUpperCase(); foreground: win.fg; fontFamily: win.fontFamily; topPadding: Style.space(10) }
+
+            SettingCard {
+              width: parent.width
+              title: win.t("card.idle")
+              description: win.t("card.idle.desc")
+              hasCursor: win.currentRow === "idle"
+              fontFamily: win.fontFamily
+              ButtonGroup {
+                objectName: "idleLockGroup"
+                focusable: false
+                options: [{ value: "off", label: win.t("settings.off") }, { value: "on", label: win.t("settings.on") }]
+                value: win.defs.idleLock
+                foreground: win.fg; background: win.bg; accent: win.accent; fontFamily: win.fontFamily; fontSize: Style.font.caption
+                onChanged: function(v) { win.saveDefault("idleLock", v) }
+              }
+            }
+
+            SettingGroup {
+              width: parent.width
+              visible: win.defs.idleLock === "on"
+              lineColor: win.lineColor
+
+              SettingCard {
+                width: parent.width
+                hasCursor: win.currentRow === "idleTime"
+                title: win.t("card.idleTime")
+                description: win.t("card.idleTime.desc")
+                fontFamily: win.fontFamily
+                Button { objectName: "idleMinus"; text: "−"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveDefault("idleSeconds", win.stepIdle(win.defs.idleSeconds, -1)) }
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Style.space(70)
+                  horizontalAlignment: Text.AlignHCenter
+                  textFormat: Text.PlainText
+                  text: win.formatDelay(win.defs.idleSeconds)
+                  color: win.fg; font.family: win.fontFamily; font.pixelSize: Style.font.body; font.bold: true
+                }
+                Button { objectName: "idlePlus"; text: "+"; bordered: true; fontFamily: win.fontFamily; onClicked: win.saveDefault("idleSeconds", win.stepIdle(win.defs.idleSeconds, 1)) }
+              }
+
+              SettingCard {
+                width: parent.width
+                hasCursor: win.currentRow === "idleAudio"
+                title: win.t("card.idleAudio")
+                description: win.t("card.idleAudio.desc")
+                fontFamily: win.fontFamily
+                ButtonGroup {
+                  objectName: "idleAudioGroup"
+                  focusable: false
+                  options: [{ value: "lock", label: win.t("settings.idleAudioLock") }, { value: "wait", label: win.t("settings.idleAudioWait") }]
+                  value: win.defs.idleAudio
+                  foreground: win.fg; background: win.bg; accent: win.accent; fontFamily: win.fontFamily; fontSize: Style.font.caption
+                  onChanged: function(v) { win.saveDefault("idleAudio", v) }
+                }
+              }
             }
 
             PanelSectionHeader { text: win.t("section.password").toUpperCase(); foreground: win.fg; fontFamily: win.fontFamily; topPadding: Style.space(10) }

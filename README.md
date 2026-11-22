@@ -7,7 +7,7 @@ leave it, it locks: the next time you come back it is covered with a heavy blur 
 your password before it shows anything. Your system password always works, and each
 workspace can also have a password of its own.
 
-**Status: v0.3.7.** Lock right away or after some time away, the system password or a
+**Status: v0.4.0.** Lock right away or after some time away, the system password or a
 per-workspace one, a lock icon in the bar, a settings window you can drive with the keyboard,
 a shortcut to lock the workspace you are on, and a lock that comes back when the whole session
 is locked.
@@ -47,6 +47,10 @@ it (your system password would too).
 - **Lock right away, or after a while.** By default a private workspace locks the moment you
   leave it. You can give it some time away instead (5 seconds to 1 hour): come back sooner and it
   is still open.
+- **Lock when idle (optional).** Turn it on and an open private workspace also locks while you
+  are still in it, once the keyboard and mouse sit untouched for a while (15 minutes by default,
+  1 minute to 2 hours). It can lock anyway or wait while audio is playing. It works on its own,
+  even with Omarchy's idle lock turned off.
 - **A heavy blur, not a black screen.** The locked workspace stays exactly as it was (no window
   is moved or closed); it is shown behind a strong blur with a password card on top. The blur is
   Hyprland's own, turned on only while a workspace is locked and put back to your settings when
@@ -115,6 +119,7 @@ Everything can be changed in the settings window (lock icon → **Settings**). T
 | Setting | Default | |
 |---|---|---|
 | When to lock | As soon as I leave | or after some time away (5 s – 1 h) |
+| Lock when idle | Off | on: after 15 min without keyboard or mouse (1 min – 2 h), locking anyway or waiting while audio plays |
 | Password | System password | or the workspace's own password (the system one still works) |
 | Lock shortcut | `Super+Ctrl+Shift+L` | press a new one to change it |
 | Shortcuts on a locked workspace | `Super+1…0`, `Super+Tab`, `Super+Space`, `Super+Ctrl+L` | add or remove any; red ones are not in Omarchy's keybindings |

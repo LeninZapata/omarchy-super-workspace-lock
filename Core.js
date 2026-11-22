@@ -144,3 +144,26 @@ function hasUnlockedPrivate(state) {
     if (state.lockedIds.indexOf(state.privateIds[i]) === -1) return true
   return false
 }
+
+// Inactividad: qué privados ABIERTOS ya cumplieron su plazo. `targets` = Settings.idleTargets,
+// `idleMs` = cuánto lleva el equipo sin teclado ni ratón. Devuelve { lock, wait }: los de
+// `wait` solo se bloquean si no suena audio (lo comprueba el servicio).
+function idleDue(state, targets, idleMs) {
+  var out = { lock: [], wait: [] }
+  if (!(idleMs > 0)) return out
+  for (var i = 0; i < state.privateIds.length; i++) {
+    var id = state.privateIds[i]
+    var t = targets[String(id)]
+    if (!t || state.lockedIds.indexOf(id) !== -1 || idleMs < t.seconds * 1000) continue
+    if (t.audio === "wait") out.wait.push(id)
+    else out.lock.push(id)
+  }
+  return out
+}
+
+// Varios bloqueos a la vez (lockNow de cada uno).
+function lockMany(state, ids) {
+  var next = state
+  for (var i = 0; i < ids.length; i++) next = lockNow(next, ids[i])
+  return next
+}

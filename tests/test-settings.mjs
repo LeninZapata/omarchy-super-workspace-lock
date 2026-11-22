@@ -59,4 +59,21 @@ assert.equal(S.withAllowed(al, 'SUPER + F', true).lockedAllowedShortcuts.filter(
 assert.ok(!S.withAllowed(al, 'SUPER + F', false).lockedAllowedShortcuts.includes('SUPER + F'));
 assert.ok(!S.withAllowed(al, 'x; os.exit()', true).lockedAllowedShortcuts.includes('x; os.exit()'));
 
+// inactividad: apagado de fábrica, 15 min, bloquea aunque suene audio; por workspace hereda
+assert.equal(d.defaults.idleLock, 'off');
+assert.equal(d.defaults.idleSeconds, 900);
+assert.equal(d.defaults.idleAudio, 'lock');
+let id = S.normalize({ defaults: { idleLock: 'on', idleSeconds: 600, idleAudio: 'wait' },
+  workspaces: { '2': { private: true }, '3': { private: true, idleLock: 'off' }, '4': { private: true, idleSeconds: 120, idleAudio: 'lock' },
+                '5': { idleLock: 'on' }, '6': { private: true, idleSeconds: 30, idleLock: true, idleAudio: 'x' } } });
+assert.deepEqual(plain(id.workspaces['6']), { private: true }, 'fuera de rango o desconocido se descarta');
+assert.deepEqual(plain(S.idleTargets(id)), { '2': { seconds: 600, audio: 'wait' }, '4': { seconds: 120, audio: 'lock' }, '6': { seconds: 600, audio: 'wait' } });
+assert.deepEqual(plain(S.idleTargets(S.normalize({ workspaces: { '2': { private: true } } }))), {}, 'apagado por defecto');
+assert.deepEqual(plain(S.idleTargets(S.normalize({ workspaces: { '2': { private: true, idleLock: 'on' } } }))), { '2': { seconds: 900, audio: 'lock' } }, 'encendido solo en un workspace');
+assert.equal(S.normalize({ defaults: { idleSeconds: 59 } }).defaults.idleSeconds, 900);
+assert.equal(S.normalize({ defaults: { idleSeconds: 7201 } }).defaults.idleSeconds, 900);
+let iw = S.withWorkspaceField(S.withPrivate(S.defaults(), 3, true), 3, 'idleLock', 'off');
+assert.equal(S.effective(iw, 3).idleLock, 'off');
+assert.deepEqual(plain(S.withWorkspaceField(iw, 3, 'idleLock', null).workspaces), { '3': { private: true } });
+
 console.log('settings ok');
